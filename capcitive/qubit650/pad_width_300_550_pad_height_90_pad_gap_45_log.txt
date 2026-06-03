@@ -1,0 +1,242 @@
+||||||||||||||||||||||||||||||||||||||||||||||||||pad_width Begins||||||||||||||||||||||||||||||||||||||||||||||||||
+
+==================================================ITERATION 0==================================================
+
+pad_width = 300 um
+
+[3, 4] [5 0 1]
+Predicted Values
+
+Transmon Properties
+f_Q 6.559297 [GHz]
+EC 456.332693 [MHz]
+EJ 13.616300 [GHz]
+alpha -555.168635 [MHz]
+dispersion 841.058161 [KHz]
+Lq 11.995161 [nH]
+Cq 42.447601 [fF]
+T1 9.543971 [us]
+
+**Coupling Properties**
+
+tCqbus1 -3.056672 [fF]
+gbus1_in_MHz -64.525243 [MHz]
+χ_bus1 -10.559529 [MHz]
+1/T1bus1 14046.420680 [Hz]
+T1bus1 11.330641 [us]
+
+tCqbus2 3.762999 [fF]
+gbus2_in_MHz 68.118124 [MHz]
+χ_bus2 -2231.314123 [MHz]
+1/T1bus2 971.036297 [Hz]
+T1bus2 163.902156 [us]
+
+tCqbus3 -3.055815 [fF]
+gbus3_in_MHz -57.155271 [MHz]
+χ_bus3 51.516468 [MHz]
+1/T1bus3 1658.509813 [Hz]
+T1bus3 95.962618 [us]
+Bus-Bus Couplings
+gbus1_2 3.034788 [MHz]
+gbus1_3 3.800503 [MHz]
+gbus2_3 2.677687 [MHz]
+==================================================ITERATION 1==================================================
+
+pad_width = 350 um
+
+[3, 4] [5 0 1]
+Predicted Values
+
+Transmon Properties
+f_Q 6.204092 [GHz]
+EC 404.372687 [MHz]
+EJ 13.616300 [GHz]
+alpha -484.070929 [MHz]
+dispersion 336.142948 [KHz]
+Lq 11.995161 [nH]
+Cq 47.901920 [fF]
+T1 0.015630 [us]
+
+**Coupling Properties**
+
+tCqbus1 -3.086971 [fF]
+gbus1_in_MHz -59.188121 [MHz]
+χ_bus1 -3.349412 [MHz]
+1/T1bus1 3418.540081 [Hz]
+T1bus1 46.556407 [us]
+
+tCqbus2 3.866511 [fF]
+gbus2_in_MHz 63.561420 [MHz]
+χ_bus2 68.422881 [MHz]
+1/T1bus2 6015.785232 [Hz]
+T1bus2 26.456221 [us]
+
+tCqbus3 -3.084374 [fF]
+gbus3_in_MHz -52.397999 [MHz]
+χ_bus3 1353.361290 [MHz]
+1/T1bus3 10173123.496147 [Hz]
+T1bus3 0.015645 [us]
+Bus-Bus Couplings
+gbus1_2 2.778118 [MHz]
+gbus1_3 3.026575 [MHz]
+gbus2_3 2.448089 [MHz]
+==================================================ITERATION 2==================================================
+
+pad_width = 400 um
+
+[3, 4] [5 0 1]
+Predicted Values
+
+Transmon Properties
+f_Q 5.900706 [GHz]
+EC 362.899630 [MHz]
+EJ 13.616300 [GHz]
+alpha -428.872378 [MHz]
+dispersion 140.439074 [KHz]
+Lq 11.995161 [nH]
+Cq 53.376269 [fF]
+T1 6.611623 [us]
+
+**Coupling Properties**
+
+tCqbus1 -3.081119 [fF]
+gbus1_in_MHz -54.233608 [MHz]
+χ_bus1 -1.517475 [MHz]
+1/T1bus1 1425.766632 [Hz]
+T1bus1 111.627625 [us]
+
+tCqbus2 3.937823 [fF]
+gbus2_in_MHz 59.417396 [MHz]
+χ_bus2 -57.764256 [MHz]
+1/T1bus2 21127.902830 [Hz]
+T1bus2 7.532927 [us]
+
+tCqbus3 -3.079354 [fF]
+gbus3_in_MHz -48.024278 [MHz]
+χ_bus3 -9.091197 [MHz]
+1/T1bus3 1518.323709 [Hz]
+T1bus3 104.822800 [us]
+Bus-Bus Couplings
+gbus1_2 2.513472 [MHz]
+gbus1_3 2.440323 [MHz]
+gbus2_3 2.213817 [MHz]
+==================================================ITERATION 3==================================================
+
+pad_width = 450 um
+
+[3, 4] [5 0 1]
+Predicted Values
+
+Transmon Properties
+f_Q 5.636172 [GHz]
+EC 328.855964 [MHz]
+EJ 13.616300 [GHz]
+alpha -384.537037 [MHz]
+dispersion 60.671263 [KHz]
+Lq 11.995161 [nH]
+Cq 58.901860 [fF]
+T1 66.638861 [us]
+
+**Coupling Properties**
+
+tCqbus1 -3.037347 [fF]
+gbus1_in_MHz -49.480851 [MHz]
+χ_bus1 -0.801842 [MHz]
+1/T1bus1 733.247478 [Hz]
+T1bus1 217.054880 [us]
+
+tCqbus2 3.983394 [fF]
+gbus2_in_MHz 55.617670 [MHz]
+χ_bus2 -8.755610 [MHz]
+1/T1bus2 1315.808884 [Hz]
+T1bus2 120.955972 [us]
+
+tCqbus3 -3.034154 [fF]
+gbus3_in_MHz -43.794206 [MHz]
+χ_bus3 -2.769423 [MHz]
+1/T1bus3 339.263925 [Hz]
+T1bus3 469.118380 [us]
+Bus-Bus Couplings
+gbus1_2 2.244099 [MHz]
+gbus1_3 1.959684 [MHz]
+gbus2_3 1.973609 [MHz]
+==================================================ITERATION 4==================================================
+
+pad_width = 500 um
+
+[3, 4] [5 0 1]
+Predicted Values
+
+Transmon Properties
+f_Q 5.403076 [GHz]
+EC 300.451689 [MHz]
+EJ 13.616300 [GHz]
+alpha -348.195316 [MHz]
+dispersion 27.016532 [KHz]
+Lq 11.995161 [nH]
+Cq 64.470359 [fF]
+T1 165.406537 [us]
+
+**Coupling Properties**
+
+tCqbus1 -2.951964 [fF]
+gbus1_in_MHz -44.810196 [MHz]
+χ_bus1 -0.459522 [MHz]
+1/T1bus1 418.375605 [Hz]
+T1bus1 380.411623 [us]
+
+tCqbus2 4.006699 [fF]
+gbus2_in_MHz 52.117309 [MHz]
+χ_bus2 -3.367830 [MHz]
+1/T1bus2 410.747322 [Hz]
+T1bus2 387.476520 [us]
+
+tCqbus3 -2.947722 [fF]
+gbus3_in_MHz -39.644465 [MHz]
+χ_bus3 -1.207743 [MHz]
+1/T1bus3 133.081748 [Hz]
+T1bus3 1195.918640 [us]
+Bus-Bus Couplings
+gbus1_2 1.971565 [MHz]
+gbus1_3 1.551774 [MHz]
+gbus2_3 1.730699 [MHz]
+==================================================ITERATION 5==================================================
+
+pad_width = 550 um
+
+[3, 4] [5 0 1]
+Predicted Values
+
+Transmon Properties
+f_Q 5.194099 [GHz]
+EC 276.227909 [MHz]
+EJ 13.616300 [GHz]
+alpha -317.658468 [MHz]
+dispersion 12.283582 [KHz]
+Lq 11.995161 [nH]
+Cq 70.124080 [fF]
+T1 317.925055 [us]
+
+**Coupling Properties**
+
+tCqbus1 -2.804522 [fF]
+gbus1_in_MHz -39.875295 [MHz]
+χ_bus1 -0.270390 [MHz]
+1/T1bus1 247.684701 [Hz]
+T1bus1 642.570745 [us]
+
+tCqbus2 4.007719 [fF]
+gbus2_in_MHz 48.817143 [MHz]
+χ_bus2 -1.684518 [MHz]
+1/T1bus2 189.598597 [Hz]
+T1bus2 839.431016 [us]
+
+tCqbus3 -2.799037 [fF]
+gbus3_in_MHz -35.259493 [MHz]
+χ_bus3 -0.599517 [MHz]
+1/T1bus3 63.321924 [Hz]
+T1bus3 2513.425567 [us]
+Bus-Bus Couplings
+gbus1_2 1.686567 [MHz]
+gbus1_3 1.186954 [MHz]
+gbus2_3 1.477111 [MHz]
