@@ -3,7 +3,20 @@ name = "metal-flow"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.11"
 dependencies = [
-    "quantum-metal[full]>=0.7.3",
+    "ipywidgets>=8.1.8",
+    "jupyter>=1.1.1",
+    "pandas==2.3",
+    "pyepr-quantum==1.0.1",
+    "pywin32>=312",
+    "quantum-metal[full]",
 ]
+
+[tool.uv.workspace]
+members = [
+    "quantum-metal",
+]
+
+[tool.uv.sources]
+quantum-metal = { workspace = true, editable = true }
