@@ -28,25 +28,37 @@ FOUR_QUBIT_DESIGN_DICT = Dict(
 
     # Locations and orientations of the 4 wirebond launchpads for I/O
     launchpad_options = Dict(
-        p0 = Dict(pos_x='250um' , pos_y='8500um', orientation='-90', lead_length='50 um', pad_width='80 um', pad_height='80 um'),
+        p0 = Dict(pos_x='25um' , pos_y='8500um', orientation='-90', lead_length='50 um', pad_width='80 um', pad_height='80 um'),
         p1 = Dict(pos_x='7250um', pos_y='8500um', orientation='-90', lead_length='50 um', pad_width='80 um', pad_height='80 um'),
-        p2 = Dict(pos_x='250um' , pos_y='2000um' , orientation='90', lead_length='50 um', pad_width='80 um', pad_height='80 um'),
+        p2 = Dict(pos_x='25um' , pos_y='2000um' , orientation='90', lead_length='50 um', pad_width='80 um', pad_height='80 um'),
         p3 = Dict(pos_x='7250um', pos_y='2000um' , orientation='90', lead_length='50 um', pad_width='80 um', pad_height='80 um')
     ),
 
 
-    cpw_default_options = Dict(chip='main', fillet='99.99um', hfss_wire_bonds=True),
+    cpw_default_options = Dict(chip='main', hfss_wire_bonds=True),
 
 
-    feedline_connections = [('p0', 'p2', 'feedline_02'), ('p1', 'p3', 'feedline_13')],
+    feedline_connections = [Dict(start_pin=Dict(component='p0', pin='tie'), end_pin=Dict(component='ctl0', pin='prime_end')), 
+                            
+                            Dict(start_pin=Dict(component='ctl0', pin='prime_start'), end_pin=Dict(component='ctl2', pin='prime_end')),
+                            
+                            Dict(start_pin=Dict(component='ctl2', pin='prime_start'), end_pin=Dict(component='p2', pin='tie')),
+                            
+                            Dict(start_pin=Dict(component='p1', pin='tie'), end_pin=Dict(component='ctl1', pin='prime_start')), 
+                            
+                            Dict(start_pin=Dict(component='ctl1', pin='prime_end'), end_pin=Dict(component='ctl3', pin='prime_start')),
+                            
+                            Dict(start_pin=Dict(component='ctl3', pin='prime_end'), end_pin=Dict(component='p3', pin='tie'))
+
+    ],
 
 
     # Locations, orientations, and GDS generation names for the 4 Transmon qubits
     qubit_options = Dict(
-        q0 = Dict(pos_x='2250um', pos_y='6000um', orientation='0', gds_cell_name='Chip0725_auto', pad_width= '450 um', pad_height= "100 um", pad_gap = '20 um'),#, pocket_width='1100 um', pocket_height='1100 um'),
-        q1 = Dict(pos_x='5250um', pos_y='6000um', orientation='0', gds_cell_name='Chip0726_auto', pad_width= '450 um', pad_height= "70 um" , pad_gap = '20 um'), #, pocket_width='1100 um', pocket_height='1100 um'),
-        q2 = Dict(pos_x='2250um', pos_y='3000um', orientation='0', gds_cell_name='Chip0727_auto', pad_width= '450 um', pad_height= "90 um" , pad_gap = '20 um'), #, pocket_width='1100 um', pocket_height='1100 um'),
-        q3 = Dict(pos_x='5250um', pos_y='3000um', orientation='0', gds_cell_name='Chip0728_auto', pad_width= '450 um', pad_height= "80 um" , pad_gap = '20 um')  #, pocket_width='1100 um', pocket_height='1100 um')
+        q0 = Dict(pos_x='2250um', pos_y='6500um', orientation='0', gds_cell_name='Chip0725_auto', pad_width= '450 um', pad_height= "100 um", pad_gap = '20 um'),#, pocket_width='1100 um', pocket_height='1100 um'),
+        q1 = Dict(pos_x='5250um', pos_y='6500um', orientation='0', gds_cell_name='Chip0726_auto', pad_width= '450 um', pad_height= "70 um" , pad_gap = '20 um'), #, pocket_width='1100 um', pocket_height='1100 um'),
+        q2 = Dict(pos_x='2250um', pos_y='3500um', orientation='0', gds_cell_name='Chip0727_auto', pad_width= '450 um', pad_height= "90 um" , pad_gap = '20 um'), #, pocket_width='1100 um', pocket_height='1100 um'),
+        q3 = Dict(pos_x='5250um', pos_y='3500um', orientation='0', gds_cell_name='Chip0728_auto', pad_width= '450 um', pad_height= "80 um" , pad_gap = '20 um')  #, pocket_width='1100 um', pocket_height='1100 um')
     ),
 
     # Default geometry parameters for the TransmonPocket6 components, including coupling pads
@@ -61,10 +73,10 @@ FOUR_QUBIT_DESIGN_DICT = Dict(
     # Explicitly defining the pad placement (Width/Height directional vectors) for each qubit
     # to ensure routing doesn't cross over itself
     qubit_pad_placements = Dict(
-        q0 = dict(resonator_pad=dict(loc_W=-1, loc_H=+1), coupler_short_pad=dict(loc_W=+1, loc_H=+1), coupler_long_pad=dict(loc_W=0, loc_H=-1)),
-        q1 = dict(resonator_pad=dict(loc_W=+1, loc_H=+1), coupler_short_pad=dict(loc_W=-1, loc_H=+1), coupler_long_pad=dict(loc_W=0, loc_H=-1)),
-        q2 = dict(resonator_pad=dict(loc_W=-1, loc_H=-1), coupler_short_pad=dict(loc_W=+1, loc_H=-1), coupler_long_pad=dict(loc_W=0, loc_H=+1)),
-        q3 = dict(resonator_pad=dict(loc_W=+1, loc_H=-1), coupler_short_pad=dict(loc_W=-1, loc_H=-1), coupler_long_pad=dict(loc_W=0, loc_H=+1)),
+        q0 = Dict(resonator_pad=Dict(loc_W=-1, loc_H=+1), coupler_short_pad=Dict(loc_W=+1, loc_H=+1), coupler_long_pad=Dict(loc_W=0, loc_H=-1)),
+        q1 = Dict(resonator_pad=Dict(loc_W=+1, loc_H=+1), coupler_short_pad=Dict(loc_W=-1, loc_H=+1), coupler_long_pad=Dict(loc_W=0, loc_H=-1)),
+        q2 = Dict(resonator_pad=Dict(loc_W=-1, loc_H=-1), coupler_short_pad=Dict(loc_W=+1, loc_H=-1), coupler_long_pad=Dict(loc_W=0, loc_H=+1)),
+        q3 = Dict(resonator_pad=Dict(loc_W=+1, loc_H=-1), coupler_short_pad=Dict(loc_W=-1, loc_H=-1), coupler_long_pad=Dict(loc_W=0, loc_H=+1)),
     ),
 
     # Target qubit frequencies 
@@ -85,10 +97,10 @@ FOUR_QUBIT_DESIGN_DICT = Dict(
 
     # Meander routing configuration for readout resonators (lead lengths, fillet radii, asymmetry)
     resonator_meander_params = Dict(
-        q0 = Dict(asymmetry = -400, lead=Dict(start_straight='50um', end_straight='50um')),
-        q1 = Dict(asymmetry = 400,  lead=Dict(start_straight='50um', end_straight='50um')),
-        q2 = Dict(asymmetry = 400,  lead=Dict(start_straight='900um', end_straight='50um')),
-        q3 = Dict(asymmetry = -400, lead=Dict(start_straight='600um', end_straight='300um'))
+        q0 = Dict(fillet='70um', meander=Dict(spacing = '150um', asymmetry = '50um'), lead=Dict(start_straight='100um', end_straight='0um')),
+        q1 = Dict(fillet='70um', meander=Dict(spacing = '150um', asymmetry = '300um'), lead=Dict(start_straight='200um', end_straight='0um')),
+        q2 = Dict(fillet='70um', meander=Dict(spacing = '150um', asymmetry = '300um'), lead=Dict(start_straight='100um', end_straight='0um')),
+        q3 = Dict(fillet='70um', meander=Dict(spacing = '150um', asymmetry = '-400um'), lead=Dict(start_straight='200um', end_straight='0um'))
     ),
 
     # Defined total lengths for CPW bus couplers between qubits
@@ -101,18 +113,25 @@ FOUR_QUBIT_DESIGN_DICT = Dict(
 
     # Meander routing configuration for inter-qubit CPW couplers
     coupler_meander_params = Dict(
-        c01 = Dict(asymmetry = 300,   lead=Dict(start_straight='100um', end_straight='100um')),
-        c02 = Dict(asymmetry = 525.5, lead=Dict(start_straight='200um', end_straight='200um')),
-        c13 = Dict(asymmetry = -300,  lead=Dict(start_straight='100um', end_straight='50um')),
-        c23 = Dict(asymmetry = -300,  lead=Dict(start_straight='100um', end_straight='100um'))
+        c01 = Dict(fillet='70um', meander=Dict(spacing = '150um', asymmetry = '300um'), lead=Dict(start_straight='100um', end_straight='100um')),
+        c02 = Dict(fillet='70um', meander=Dict(spacing = '150um', asymmetry = '400um'), lead=Dict(start_straight='200um', end_straight='200um')),
+        c13 = Dict(fillet='70um', meander=Dict(spacing = '200um', asymmetry = '-250um'), lead=Dict(start_straight='100um', end_straight='100um')),
+        c23 = Dict(fillet='70um', meander=Dict(spacing = '150um', asymmetry = '-200um'), lead=Dict(start_straight='100um', end_straight='100um'))
         ),
 
-    otg_list = [('otg0', dict(chip='main', pos_x='300um' , pos_y='6500um', orientation=270)),
-                ('otg1', dict(chip='main', pos_x='7200um', pos_y='6500um', orientation=270)), 
-                ('otg2', dict(chip='main', pos_x='300um' , pos_y='4500um', orientation=90 )),
-                ('otg3', dict(chip='main', pos_x='7200um', pos_y='4500um', orientation=90))],
+    
+    readout_map = [Dict(start_pin= Dict(component='ctl0', pin='second_end'), end_pin=Dict(component='q0', pin='resonator_pad')), 
+                   Dict(start_pin= Dict(component='ctl1', pin='second_end'), end_pin=Dict(component='q1', pin='resonator_pad')), 
+                   Dict(start_pin= Dict(component='ctl2', pin='second_end'), end_pin=Dict(component='q2', pin='resonator_pad')), 
+                   Dict(start_pin= Dict(component='ctl3', pin='second_end'), end_pin=Dict(component='q3', pin='resonator_pad')), 
+                   ],
 
-    readout_map = {'otg0':'q0', 'otg1':'q1', 'otg2':'q2', 'otg3':'q3'}, 
+    coupled_tline_params = Dict(
+                                ctl0= Dict(pos_x='25um'  , pos_y='7000um', open_termination=True,  orientation=90 , down_length='300um', coupling_length='500um', fillet='100um', mirror=False),
+                                ctl1= Dict(pos_x='7250um', pos_y='7000um', open_termination=True,  orientation=-90, down_length='300um', coupling_length='500um', fillet='100um', mirror=True),
+                                ctl2= Dict(pos_x='25um'  , pos_y='3000um', open_termination=True,  orientation=90 , down_length='300um', coupling_length='500um', fillet='100um', mirror=False),
+                                ctl3= Dict(pos_x='7250um', pos_y='3200um', open_termination=True,  orientation=-90, down_length='300um', coupling_length='500um', fillet='100um', mirror=True)
+                                ),
 
     coupling_map = dict(
         c01=('q0', 'coupler_short_pad', 'q1', 'coupler_short_pad'),
@@ -129,5 +148,11 @@ FOUR_QUBIT_DESIGN_DICT = Dict(
 
 
 if __name__ == '__main__':
+    # from qiskit_metal.qlibrary.couplers.coupled_line_tee import CoupledLineTee
+    # from qiskit_metal import designs
+    # design = designs.DesignPlanar()
+    # ctl = CoupledLineTee(design)
+
+    # print(ctl.pin_names)
     design = create_design(FOUR_QUBIT_DESIGN_DICT)
     view(design).savefig("design.png")

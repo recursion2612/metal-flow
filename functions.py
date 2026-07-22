@@ -3,8 +3,11 @@ from qiskit_metal import Dict
 from qiskit_metal import designs
 # Importing specific Qiskit Metal components for a planar superconducting quantum chip
 from qiskit_metal.qlibrary.qubits.transmon_pocket_6 import TransmonPocket6
+from qiskit_metal.qlibrary.couplers.coupled_line_tee import CoupledLineTee
 from qiskit_metal.qlibrary.tlines.meandered import RouteMeander
 from qiskit_metal.qlibrary.tlines.pathfinder import RoutePathfinder
+from qiskit_metal.qlibrary.tlines.straight_path import RouteStraight
+from qiskit_metal.qlibrary.tlines.framed_path import RouteFramed
 from qiskit_metal.qlibrary.terminations.launchpad_wb_coupled import LaunchpadWirebondCoupled
 from qiskit_metal.qlibrary.terminations.launchpad_wb_driven import LaunchpadWirebondDriven
 from qiskit_metal.qlibrary.terminations.open_to_ground import OpenToGround
@@ -75,20 +78,26 @@ def create_design(DESIGN_DICT):
     for name, options in DESIGN_DICT.launchpad_options.items():
         LaunchpadWirebondDriven(design, name, options=options)
 
-    print("Generating Feedlines")
+    print("Generating CoupledLineTee")
 
-    feedline_dict = {}
-    for p_start, p_end, f_name in DESIGN_DICT.feedline_connections:
+    for ctl_name in DESIGN_DICT.coupled_tline_params.keys():
 
-        fline_options = dict(pin_inputs=Dict(start_pin=Dict(component=p_start, pin='tie'), end_pin=Dict(component=p_end, pin='tie')))
+        CoupledLineTee(design, ctl_name, options=DESIGN_DICT.coupled_tline_params[ctl_name])
 
-        fline_options.update(DESIGN_DICT.cpw_default_options)
-        feedline_dict[f_name] =  RoutePathfinder(design, f_name, options=fline_options)
+        
+    print("Connecting...")
+    
+    for pin_input_connection in DESIGN_DICT.feedline_connections:
+
+        fline_options = dict(pin_inputs=pin_input_connection)
+
+        # fline_options.update(DESIGN_DICT.cpw_default_options)
+        RouteFramed(design, 'cpw_'+pin_input_connection.start_pin.component+pin_input_connection.end_pin.component, options=fline_options)
+
 
     
 
     print("Generating Qubits...")
-    qubit_components = {}
     for name, options in DESIGN_DICT.qubit_options.items():
         full_opts = DESIGN_DICT.transmon_defaults.copy()
         
@@ -96,28 +105,23 @@ def create_design(DESIGN_DICT):
         for pad_name, placement in DESIGN_DICT.qubit_pad_placements[name].items():
             full_opts.connection_pads[pad_name].update(placement)
             
-        qubit_components[name] = TransmonPocket6(design, name, options=dict(**options, **full_opts))
-
-
-    print("Generating Open to Ground for resonators")
-
-    for otg, otg_opt in DESIGN_DICT.otg_list:
-        OpenToGround(design, otg, options=otg_opt)
+        TransmonPocket6(design, name, options=dict(**options, **full_opts))
 
     print("Generating Readout Resonators...")
     
-    for otg_name, q_name in DESIGN_DICT.readout_map.items():
+    for entry in DESIGN_DICT.readout_map:
         # Fetch parameters to dynamically compute lambda/4 length for exact frequency
-        resonator_pad = qubit_components[q_name].options.connection_pads.resonator_pad
+        q_name = entry.end_pin.component
+        resonator_pad = design.components[q_name].options.connection_pads.resonator_pad
 
         resonator_dict = cal_cpw_wavelength_dict(DESIGN_DICT.resonator_frequencies_ghz[q_name], resonator_pad, **DESIGN_DICT.physical_params)
         meander_params = DESIGN_DICT.resonator_meander_params[q_name]
         
-        cpw_options = Dict(asymmetry=f'{meander_params.asymmetry}um', lead=meander_params.lead)
+        cpw_options = DESIGN_DICT.cpw_default_options
 
-        cpw_options.update(DESIGN_DICT.cpw_default_options)
+        cpw_options.update(fillet=meander_params.fillet,  meander=meander_params.meander, lead=meander_params.lead)
 
-        cpw_options.update(total_length=resonator_dict['lambda4_str'], pin_inputs=Dict(start_pin=Dict(component=otg_name, pin='open'), end_pin=Dict(component=q_name, pin='resonator_pad')))
+        cpw_options.update(total_length=resonator_dict['lambda4_str'], pin_inputs=Dict(start_pin=entry.start_pin, end_pin=entry.end_pin))
         
         # Route the resonator using the dynamically calculated quarter-wavelength string
         RouteMeander(design, f'{q_name}_resonator', options=cpw_options)
@@ -133,13 +137,13 @@ def create_design(DESIGN_DICT):
         q2_name = DESIGN_DICT.coupling_map[coup_name][2]
         q2_pad  = DESIGN_DICT.coupling_map[coup_name][3]
 
-        coupler_pad = qubit_components[DESIGN_DICT.coupling_map[coup_name][0]].options.connection_pads[q1_pad]
+        coupler_pad = design.components[DESIGN_DICT.coupling_map[coup_name][0]].options.connection_pads[q1_pad]
 
         coupler_dict = cal_cpw_wavelength_dict(DESIGN_DICT.coupler_frequencies_ghz[coup_name], coupler_pad, **DESIGN_DICT.physical_params)
 
-        cpw_options = Dict(asymmetry=f'{meander_params.asymmetry}um', lead=meander_params.lead)
+        cpw_options = DESIGN_DICT.cpw_default_options
 
-        cpw_options.update(DESIGN_DICT.cpw_default_options)
+        cpw_options.update(fillet=meander_params.fillet, meander=meander_params.meander, lead=meander_params.lead)
 
         cpw_options.update(total_length=coupler_dict['lambda4_str'], pin_inputs=Dict(start_pin=Dict(component=q1_name, pin=q1_pad), end_pin=Dict(component=q2_name, pin=q2_pad)))
         
@@ -147,3 +151,6 @@ def create_design(DESIGN_DICT):
         RouteMeander(design, coup_name, options=cpw_options)
 
     return design
+
+
+

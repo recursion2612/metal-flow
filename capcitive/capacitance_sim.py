@@ -6,7 +6,7 @@ from qiskit_metal import Dict
 from qiskit_metal.analyses.quantization import LOManalysis
 
 
-class Sweeper():
+class Capacitence_Sweeper():
     """Custom class to handle automated sweeping of component variables and cap_cap_lom data extraction."""
         
     def __init__(self, sweep_setup):
@@ -107,19 +107,19 @@ class Sweeper():
         return "Sweep Completed"
     
 
-class SweepGeneral():
-    '''Class to generate sweeps across multiple parameter values. Purpose is to build a pandas database for the sweeps and have functions to plot the data.
-        Main job 
-        1. Configure and run sim for different parameter values. If data already exists, skip. This should happen with no breaks.
-        2. Save data as pandas df.
-        3. Have functions to plot 
-    '''
+# class SweepGeneral():
+#     '''Class to generate sweeps across multiple parameter values. Purpose is to build a pandas database for the sweeps and have functions to plot the data.
+#         Main job 
+#         1. Configure and run sim for different parameter values. If data already exists, skip. This should happen with no breaks.
+#         2. Save data as pandas df.
+#         3. Have functions to plot 
+#     '''
 
-    def __init__(self, design, simulation, file_prefix):
-        self.simulation = simulation(design)
-        self.file_prefix = file_prefix
+#     def __init__(self, design, simulation, file_prefix):
+#         self.simulation = simulation(design)
+#         self.file_prefix = file_prefix
         
-    def run_sweep(parameters, values):
+#     def run_sweep(parameters, values):
 
 
         
