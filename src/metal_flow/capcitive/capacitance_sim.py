@@ -16,10 +16,20 @@ class Capacitence_Sweeper():
         # Inject user setups or fallback to defaults
         self.lom.setup = sweep_setup.lom_setup if sweep_setup.lom_setup else Dict(junctions=Dict(Lj=12, Cj=2), freq_readout=7.0,freq_bus=[6.0, 6.2])
         self.lom.sim.setup = sweep_setup.lom_sim_setup if sweep_setup.lom_sim_setup else Dict({'name': sweep_setup.name+'_Setup', 'reuse_selected_design': True, 'reuse_setup': True, 'freq_ghz': 5.0, 'save_fields': True, 'enabled': True, 'max_passes': 15, 'min_passes': 2, 'min_converged_passes': 2, 'percent_error': 0.5, 'percent_refinement': 30, 'auto_increase_solution_order': True, 'solution_order': 'Highest', 'solver_type': 'Iterative'})
-        self.run_args_dict = sweep_setup.run_args_dict
+        self.run_args_dict = sweep_setup.run_args_dict # Contains args for _render/analyse
+
         # self.name = sweep_setup.name if sweep_setup.name else 'Sweeper_Q3D'
         # self.textfile_str  = sweep_setup.name+'_text_log' if name else 'f{self.name}_text_log'
         # self.imagefile_str = sweep_setup.name+'_image' if name else 'f{self.name}_image'
+
+
+    def perform_initial_analysis(self):
+
+        '''This function shall perform an initial capacitance analysis.
+           Goal is to extract initial values and then perform sweep on any one of the parameters.
+        '''
+
+        
 
 
     def perform_sweep(self, name, sweep_component_options, sweep_variable, sweep_values, track_parameters=None):

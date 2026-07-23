@@ -55,8 +55,8 @@ class Sweeper_SYZ():
 
 
 if __name__ == '__main__':
-    from design import FOUR_QUBIT_DESIGN_DICT
-    from functions import create_design
+    from ..design import FOUR_QUBIT_DESIGN_DICT
+    from ..design import create_design
     test_design = create_design(FOUR_QUBIT_DESIGN_DICT)
 
     SYZ=Dict(solution_type='hfss',
