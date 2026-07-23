@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: metal-flow
+Version: 0.1.0
+Summary: Add your description here
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: ipywidgets>=8.1.8
+Requires-Dist: jupyter>=1.1.1
+Requires-Dist: pandas==2.3
+Requires-Dist: pyepr-quantum==1.0.1
+Requires-Dist: pywin32>=312
+Requires-Dist: quantum-metal[full]
+
+# metal-flow
