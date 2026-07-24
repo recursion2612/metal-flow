@@ -2,5 +2,7 @@ ipywidgets>=8.1.8
 jupyter>=1.1.1
 pandas==2.3
 pyepr-quantum==1.0.1
-pywin32>=312
-quantum-metal[full]
+pypalace>=0.1.3
+
+[:sys_platform == "darwin"]
+quantum-metal[mesh]

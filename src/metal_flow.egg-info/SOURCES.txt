@@ -14,6 +14,3 @@ src/metal_flow/capcitive/__init__.py
 src/metal_flow/capcitive/capacitance_sim.py
 src/metal_flow/impedance/__init__.py
 src/metal_flow/impedance/impedance_sim.py
-src/metal_flow/tutorials/resources/balaclava.py
-src/metal_flow/tutorials/resources/my429_qcomponents.py
-src/metal_flow/tutorials/resources/skeleton_renderer.py
