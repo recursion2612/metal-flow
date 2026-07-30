@@ -1,1 +1,1 @@
-from capacitance_sim import Capacitence_Sweeper
+from .capacitance_sim import Capacitence_Sweeper

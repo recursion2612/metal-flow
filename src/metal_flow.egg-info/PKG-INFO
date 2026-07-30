@@ -4,6 +4,7 @@ Version: 0.1.0
 Summary: Add your description here
 Requires-Python: >=3.11
 Description-Content-Type: text/markdown
+Requires-Dist: h5py>=3.16.0
 Requires-Dist: ipywidgets>=8.1.8
 Requires-Dist: jupyter>=1.1.1
 Requires-Dist: pandas==2.3
@@ -12,3 +13,29 @@ Requires-Dist: pywin32>=312
 Requires-Dist: quantum-metal[full]
 
 # metal-flow
+
+
+## Design textual diagram 
+
+```
+  p0                                                      p1
+  |                                                       |
+  |                                                       |
+  |                                                       | 
+ctl0  ---  r0  ---  q0-------c01------q1  ---  r1  ---  ctl1
+  |                  |                 |                  | 
+  |                  |                 |                  | 
+  |                  |                 |                  | 
+  |                  |                 |                  | 
+  |                  |                 |                  | 
+ctl2  ---  r2  ---  q2------c23-------q3  ---  r3  ---  ctl3
+  |                                                       | 
+  |                                                       |
+  |                                                       |
+  p2                                                      p3
+
+```
+
+## Diagram
+
+![Diagram](design.png)
