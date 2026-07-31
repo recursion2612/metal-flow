@@ -54,3 +54,6 @@ venv/
 
 # Metal Tutorials
 tutorials/
+
+# File I dont want to show
+src\metal_flow\main_design.ipynb
