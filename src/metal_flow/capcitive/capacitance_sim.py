@@ -149,6 +149,56 @@ class Capacitence_Sweeper():
 
 if __name__ == '__main__':
     from metal_flow.design import FOUR_QUBIT_DESIGN_DICT
+    from metal_flow.functions import create_design
+    from qiskit_metal import designs
+    ## Dummy test 
+    design = create_design(FOUR_QUBIT_DESIGN_DICT)
+
+    qubit_name = 'q_2'
+
+    def get_side_frequencies_for_qubit(design, qubit_name, DESIGN_DICT):
+
+        qubit = qubit_name.replace('_', '')
+
+        coupler_list = [freq for name, freq in DESIGN_DICT.coupler_frequencies_ghz.items() if qubit in name]
+
+        return coupler_list
+
+
+    # print(get_side_frequencies_for_qubit(design, qubit_name, FOUR_QUBIT_DESIGN_DICT))
+
+
+    sweep_setup = Dict(design = design,
+                                # Only simulate q0 and define its open terminations to extract exact capacitance matrix
+                                run_args_dict = Dict(components=[design.components[qubit_name].name] , open_terminations=[(design.components[qubit_name].name, pad) for pad in design.components[qubit_name].pin_names]
+                                                    ),
+                                # LOM physics constraints (Josephson Junction Inductance & Capacitance)
+                                lom_setup = Dict(junctions=Dict(Lj=18, Cj=2),
+                                                freq_readout=FOUR_QUBIT_DESIGN_DICT.resonator_frequencies_ghz[qubit_name], 
+                                                freq_bus=get_side_frequencies_for_qubit(design, qubit_name, FOUR_QUBIT_DESIGN_DICT)
+                                                ),
+                                # Ansys Q3D Iterative solver properties
+                                lom_sim_setup = Dict(name = 'sweep_Q3D', 
+                                                    reuse_selected_design = True, 
+                                                    reuse_setup = True, 
+                                                    freq_ghz = FOUR_QUBIT_DESIGN_DICT.qubit_frequencies_hz[qubit_name], 
+                                                    save_fields = False, 
+                                                    enabled = True, 
+                                                    max_passes = 15, 
+                                                    min_passes = 1, 
+                                                    min_converged_passes = 1, 
+                                                    percent_error = 1, 
+                                                    percent_refinement = 30, 
+                                                    auto_increase_solution_order = True, 
+                                                    solution_order = 'High', 
+                                                    solver_type = 'Iterative'))
+
+
+    cap_sweep = Capacitence_Sweeper(sweep_setup)
+
+    latest_cap_matrix, all_cap_matrix, plot_freq_alpha_conv, plot_chi_coup = cap_sweep.perform_initial_analysis()
+    
+
 
 
 # class SweepGeneral():

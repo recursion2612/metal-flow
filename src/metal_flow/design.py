@@ -294,10 +294,10 @@ FOUR_QUBIT_DESIGN_DICT = Dict(
 
 if __name__ == '__main__':
     # from qiskit_metal.qlibrary.couplers.coupled_line_tee import CoupledLineTee
-    # from qiskit_metal import designs
-    # design = designs.DesignPlanar()
-    # ctl = CoupledLineTee(design)
+    from qiskit_metal import designs
+    design = designs.DesignPlanar()
 
-    # print(ctl.pin_names)
     design = create_design(FOUR_QUBIT_DESIGN_DICT)
-    view(design).savefig("design.png")
+    print(design.components)
+    # view(design).savefig("design.png")
+

@@ -69,7 +69,7 @@ if __name__ == '__main__':
 
     SYZ=Dict(solution_type='hfss',
                        setup=Dict(freq_ghz=6,
-                                  max_delta_s=0.1,
+                                  max_delta_s=1,
                                   basis_order=1,
                                   min_passes=1,
                                   max_passes=10,
@@ -89,9 +89,9 @@ if __name__ == '__main__':
     Sweeper = Sweeper_SYZ(**SYZ)
 
     result_dict = Sweeper.extract_syz(design=test_design, design_name="Hanger_resonators02", 
-                                                  selection=['p0', 'p2', 'q0_resonator', 'q2_resonator', 'ctl0', 'ctl2', 'cpw_p0ctl0', 'cpw_ctl0ctl2', 'cpw_ctl2p2'], 
-                                                  open_pins=[('q0_resonator', 'end'), ('q2_resonator', 'end')], 
-                                                  port_list=[('p0', 'in', 50), ('p2', 'in', 50)], 
+                                                  selection=['p_0', 'p_2', 'q_0_resonator', 'q_2_resonator', 'ctl_0', 'ctl_2', 'cpw_p_0ctl_0', 'cpw_ctl_0ctl_2', 'cpw_ctl_2p_2'], 
+                                                  open_pins=[('q_0_resonator', 'end'), ('q_2_resonator', 'end')], 
+                                                  port_list=[('p_0', 'in', 50), ('p_2', 'in', 50)], 
                                                   box_plus_buffer=True)
     
     result_dict.S.fig.savefig("test-s-param.png")

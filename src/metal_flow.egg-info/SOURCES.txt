@@ -10,6 +10,8 @@ src/metal_flow.egg-info/SOURCES.txt
 src/metal_flow.egg-info/dependency_links.txt
 src/metal_flow.egg-info/requires.txt
 src/metal_flow.egg-info/top_level.txt
+src/metal_flow/autotune/Optimizer/__init__.py
+src/metal_flow/autotune/Optimizer/frequency_optimiser.py
 src/metal_flow/capcitive/__init__.py
 src/metal_flow/capcitive/capacitance_sim.py
 src/metal_flow/impedance/__init__.py
