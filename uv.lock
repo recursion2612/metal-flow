@@ -2391,7 +2391,7 @@ wheels = [
 
 [[package]]
 name = "quantum-metal"
-version = "0.7.5"
+version = "0.8.0"
 source = { editable = "quantum-metal" }
 dependencies = [
     { name = "addict" },
@@ -2478,8 +2478,8 @@ requires-dist = [
     { name = "pint", specifier = ">=0.21.0" },
     { name = "pyaedt", marker = "extra == 'ansys'", specifier = ">=0.21,<0.24" },
     { name = "pyaedt", marker = "extra == 'full'", specifier = ">=0.21,<0.24" },
-    { name = "pyepr-quantum", marker = "extra == 'ansys'", specifier = ">=0.9.5" },
-    { name = "pyepr-quantum", marker = "extra == 'full'", specifier = ">=0.9.5" },
+    { name = "pyepr-quantum", marker = "extra == 'ansys'", specifier = ">=1.0.1" },
+    { name = "pyepr-quantum", marker = "extra == 'full'", specifier = ">=1.0.1" },
     { name = "pygments", specifier = ">=2.14.0" },
     { name = "pyside6", marker = "extra == 'full'", specifier = ">=6.8" },
     { name = "pyside6", marker = "extra == 'gui'", specifier = ">=6.8" },
