@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+run_*/
+data/
+training_data/active_learning_log.csv
+training_data/checkpoints/*
+optimization_result.json
