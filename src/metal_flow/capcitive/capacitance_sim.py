@@ -11,22 +11,23 @@ from qiskit_metal.analyses.quantization import LOManalysis
 class Capacitence_Sweeper():
     """Custom class to handle automated sweeping of component variables and cap_cap_lom data extraction.
        sweep_setup should contain something like this
-       - lom_setup = Dict(junctions=Dict(Lj=12, Cj=2), freq_readout=7.0,freq_bus=[6.0, 6.2])
-       - lom_sim_setup = Dict({'name': sweep_setup.name+'_Setup',
-                              'reuse_selected_design': True, 
-                              'reuse_setup': True, 
-                              'freq_ghz': 5.0, 
-                              'save_fields': True, 
-                              'enabled': True, 
-                              'max_passes': 15, 
-                              'min_passes': 2, 
-                              'min_converged_passes': 2, 
-                              'percent_error': 0.5, 
-                              'percent_refinement': 30, 
-                              'auto_increase_solution_order': True, 
-                              'solution_order': 'Highest', 
-                              'solver_type': 'Iterative'})
-       - run_args_dict = Dict(components = [], open_terminations = [], box_plus_buffer = True/False)
+       sweep_setup = Dict(lom_setup = Dict(junctions=Dict(Lj=12, Cj=2), freq_readout=7.0,freq_bus=[6.0, 6.2]),
+                          lom_sim_setup = Dict({'name': sweep_setup.name+'_Setup',
+                                                'reuse_selected_design': True, 
+                                                'reuse_setup': True, 
+                                                'freq_ghz': 5.0, 
+                                                'save_fields': True, 
+                                                'enabled': True, 
+                                                'max_passes': 15, 
+                                                'min_passes': 2, 
+                                                'min_converged_passes': 2, 
+                                                'percent_error': 0.5, 
+                                                'percent_refinement': 30, 
+                                                'auto_increase_solution_order': True, 
+                                                'solution_order': 'Highest', 
+                                                'solver_type': 'Iterative'}),
+                          run_args_dict = Dict(components = [], open_terminations = [], box_plus_buffer = True/False)
+                          )
     """
         
     def __init__(self, sweep_setup):
@@ -37,10 +38,7 @@ class Capacitence_Sweeper():
         self.lom.setup = sweep_setup.lom_setup if sweep_setup.lom_setup else Dict(junctions=Dict(Lj=12, Cj=2), freq_readout=7.0,freq_bus=[6.0, 6.2])
         self.lom.sim.setup = sweep_setup.lom_sim_setup if sweep_setup.lom_sim_setup else Dict({'name': sweep_setup.name+'_Setup', 'reuse_selected_design': True, 'reuse_setup': True, 'freq_ghz': 5.0, 'save_fields': True, 'enabled': True, 'max_passes': 15, 'min_passes': 2, 'min_converged_passes': 2, 'percent_error': 0.5, 'percent_refinement': 30, 'auto_increase_solution_order': True, 'solution_order': 'Highest', 'solver_type': 'Iterative'})
         self.run_args_dict = sweep_setup.run_args_dict # Contains args for _render/analyse
-
-        # self.name = sweep_setup.name if sweep_setup.name else 'Sweeper_Q3D'
-        # self.textfile_str  = sweep_setup.name+'_text_log' if name else 'f{self.name}_text_log'
-        # self.imagefile_str = sweep_setup.name+'_image' if name else 'f{self.name}_image'
+        self.hfss_project_name = sweep_setup.hfss_project_name
 
 
     def perform_initial_analysis(self):
@@ -51,7 +49,8 @@ class Capacitence_Sweeper():
         # Ensure modifications if any are made to the design
         self.lom.sim.design.rebuild()
 
-        self.lom.sim.run(components = self.run_args_dict.components, open_terminations = self.run_args_dict.open_terminations, box_plus_buffer=True)
+        self.lom.sim.run(name=self.hfss_project_name,
+            components = self.run_args_dict.components, open_terminations = self.run_args_dict.open_terminations, box_plus_buffer=True)
         
         self.lom.run_lom()
 
@@ -105,7 +104,7 @@ class Capacitence_Sweeper():
 
                 sweep_component_options[sweep_variable] = value
                 self.lom.sim.design.rebuild()
-                self.lom.sim.run(
+                self.lom.sim.run(#name = self.hffs_project_name
                     components=self.run_args_dict.components,
                     open_terminations=self.run_args_dict.open_terminations,
                 )

@@ -432,17 +432,11 @@ def brent_minimize(
 
     converged = False
 
-    for iteration in range(
-        1,
-        max_iterations + 1,
-    ):
+    for iteration in range(1,max_iterations + 1):
 
         midpoint = 0.5 * (a + b)
 
-        tol1 = (
-            tolerance
-            + tiny * abs(x)
-        )
+        tol1 = (tolerance + tiny * abs(x))
 
         tol2 = 2.0 * tol1
 
@@ -450,10 +444,7 @@ def brent_minimize(
         # CONVERGENCE
         # ----------------------------------------------------
 
-        if abs(x - midpoint) <= (
-            tol2
-            - 0.5 * (b - a)
-        ):
+        if abs(x - midpoint) <= (tol2 - 0.5 * (b - a)):
 
             converged = True
             break
@@ -492,37 +483,20 @@ def brent_minimize(
 
             e = d
 
-            if (
-                q > 0
-                and abs(p)
-                < abs(
-                    0.5
-                    * q
-                    * previous_e
-                )
-                and p > q * (a - x)
-                and p < q * (b - x)
-            ):
+            if (q > 0 and abs(p) < abs(0.5 * q * previous_e) and p > q * (a - x) and p < q * (b - x)):
 
                 d = p / q
 
                 candidate = x + d
 
-                if (
-                    candidate - a < tol2
-                    or
-                    b - candidate < tol2
-                ):
+                if (candidate - a < tol2 or b - candidate < tol2 ):
 
                     direction = midpoint - x
 
                     if direction == 0:
                         direction = 1.0
 
-                    d = math.copysign(
-                        tol1,
-                        direction,
-                    )
+                    d = math.copysign(tol1,direction,)
 
                 parabolic_accepted = True
 
@@ -558,22 +532,11 @@ def brent_minimize(
             if direction == 0:
                 direction = 1.0
 
-            u = (
-                x
-                + math.copysign(
-                    tol1,
-                    direction,
-                )
-            )
+            u = (x + math.copysign(tol1, direction))
 
-        u = min(
-            max(u, a),
-            b,
-        )
+        u = min(max(u, a), b)
 
-        fu = float(
-            function(u)
-        )
+        fu = float(function(u))
 
         # ----------------------------------------------------
         # UPDATE BRENT STATE
@@ -597,31 +560,18 @@ def brent_minimize(
             else:
                 b = u
 
-            if (
-                fu <= fw
-                or w == x
-            ):
+            if (fu <= fw or w == x):
 
                 v, fv = w, fw
                 w, fw = u, fu
 
-            elif (
-                fu <= fv
-                or v == x
-                or v == w
-            ):
-
+            elif (fu <= fv or v == x or v == w):
                 v, fv = u, fu
 
     else:
         iteration = max_iterations
 
-    return (
-        x,
-        fx,
-        iteration,
-        converged,
-    )
+    return (x, fx, iteration, converged,)
 
 
 # ============================================================
@@ -648,27 +598,11 @@ def build_surrogate(
 
     if PchipInterpolator is None:
 
-        raise ImportError(
-            "SciPy is required for PCHIP.\n"
-            "Install it using:\n"
-            "pip install scipy"
-        )
+        raise ImportError("SciPy is required for PCHIP.\n""Install it using:\n""pip install scipy")
 
-    x = (
-        np.asarray(
-            widths,
-            dtype=float,
-        )
-        * 1e6
-    )
+    x = (1e6 * np.asarray(widths,dtype=float))
 
-    y = (
-        np.asarray(
-            frequencies,
-            dtype=float,
-        )
-        / 1e9
-    )
+    y = (1e-9 * np.asarray(frequencies,dtype=float))
 
     order = np.argsort(x)
 
@@ -684,20 +618,11 @@ def build_surrogate(
 
     for xi, yi in zip(x, y):
 
-        if (
-            len(unique_x) == 0
-            or abs(
-                xi - unique_x[-1]
-            ) > 1e-12
-        ):
+        if (len(unique_x) == 0 or abs( xi - unique_x[-1] ) > 1e-12):
 
-            unique_x.append(
-                float(xi)
-            )
+            unique_x.append(float(xi))
 
-            unique_y.append(
-                float(yi)
-            )
+            unique_y.append(float(yi))
 
         else:
 
@@ -706,26 +631,13 @@ def build_surrogate(
 
     if len(unique_x) < 2:
 
-        raise RuntimeError(
-            "At least two unique Palace samples "
-            "are required to build the surrogate."
-        )
+        raise RuntimeError("At least two unique Palace samples are required to build the surrogate.")
 
-    interpolator = PchipInterpolator(
-        unique_x,
-        unique_y,
-        extrapolate=False,
-    )
+    interpolator = PchipInterpolator(unique_x, unique_y, extrapolate=False)
 
-    minimum_width = (
-        min(unique_x)
-        * 1e-6
-    )
+    minimum_width = (min(unique_x) * 1e-6)
 
-    maximum_width = (
-        max(unique_x)
-        * 1e-6
-    )
+    maximum_width = (max(unique_x) * 1e-6)
 
     def surrogate_frequency(width):
 
