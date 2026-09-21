@@ -25,7 +25,7 @@ cdac-train-surrogate = "train_nemo_surrogate:main"
 cdac-run-optimization = "run_optimization:main"
 
 [tool.setuptools]
-py-modules = ["main", "run_optimization", "train_nemo_surrogate"]
+py-modules = ["main", "run_optimization", "train_nemo_surrogate", "generate_training_data"]
 
 [tool.setuptools.packages.find]
 include = ["src*"]

@@ -16,6 +16,10 @@ def run_pipeline(
     palace_mpi_procs: int = 4,
     palace_bin: str = DEFAULT_PALACE_PATH,
     palace_evaluator=None,
+    model_checkpoint: str | None = None,
+    model_data_log: str | None = None,
+    train_surrogate: bool = False,
+    use_palace: bool = False,
 ):
     # -------------------------------------------------------------------------
     # 1. Parameter Names & Boundary Limits
@@ -63,11 +67,22 @@ def run_pipeline(
         bounds[:, 0], bounds[:, 1], size=(pop_size, len(bounds))
     )
 
+    checkpoint_path = model_checkpoint or str(training_root / "checkpoints/nemo_surrogate.mdlus")
+    data_log_path = model_data_log
+    if data_log_path is None and model_checkpoint is not None:
+        data_log_path = str(Path(model_checkpoint).parent.parent / "active_learning_log.csv")
+
     surrogate = PhysicsNeMoSurrogate(
         n_features=len(bounds),
-        data_log_path=str(training_root / "active_learning_log.csv"),
-        checkpoint_path=str(training_root / "checkpoints/nemo_surrogate.mdlus"),
+        data_log_path=data_log_path or str(training_root / "active_learning_log.csv"),
+        checkpoint_path=checkpoint_path,
     )
+    if not train_surrogate and not surrogate.is_trained:
+        raise RuntimeError(
+            "Prediction-only workflow requires a trained surrogate checkpoint and "
+            "at least 5 matching samples. Train it separately with "
+            "train_nemo_surrogate.py."
+        )
 
     print("=" * 75)
     print("STARTING ACTIVE-LEARNING QUANTUM CHIP OPTIMIZATION")
@@ -87,7 +102,7 @@ def run_pipeline(
             candidate = population[i]
             unc = uncertainties[i]
 
-            if unc > uncertainty_threshold:
+            if use_palace and unc > uncertainty_threshold:
                 fem_runs_this_gen += 1
                 
                 # 1. Update CAD geometry
@@ -108,8 +123,9 @@ def run_pipeline(
 
             costs[i] = compute_cost(ej_mhz, ec_mhz)
 
-        # Update surrogate model
-        surrogate.fit()
+        # Training is an explicit offline step; normal optimization only predicts.
+        if train_surrogate:
+            surrogate.fit()
 
         best_idx = np.argmin(costs)
         best_cost = costs[best_idx]
@@ -135,17 +151,30 @@ def run_pipeline(
     # -------------------------------------------------------------------------
     # 4. Results Summary
     # -------------------------------------------------------------------------
-    actual_costs = np.array([
-        compute_cost(ej_mhz, ec_mhz)
-        for ej_mhz, ec_mhz in surrogate.Y_train
-    ])
-    best_actual_idx = int(np.argmin(actual_costs))
-    best_candidate = surrogate.X_train[best_actual_idx]
-    best_ej_mhz, best_ec_mhz = surrogate.Y_train[best_actual_idx]
+    # The GA chooses using Nemo predictions; Palace measures only that final choice.
+    best_idx = int(np.argmin(costs))
+    best_candidate = population[best_idx]
+    predicted_ej_mhz, predicted_ec_mhz = predictions[best_idx]
+    update_qiskit_geometry(design, best_candidate, param_names, default_unit="um")
+    final_run_name = f"final_selection_gen_{generations - 1:02d}"
+    if callable(evaluator):
+        best_ej_mhz, best_ec_mhz = evaluator(design, best_candidate, final_run_name)
+    else:
+        best_ej_mhz, best_ec_mhz = evaluator.evaluate(
+            design, best_candidate, final_run_name
+        )
+    surrogate.log_and_append_sample(best_candidate, [best_ej_mhz, best_ec_mhz])
+    final_costs = np.array([compute_cost(best_ej_mhz, best_ec_mhz)])
+    result_source = "Palace measurement of Nemo-selected design"
     result = {
         "best_parameters": dict(zip(param_names, [float(value) for value in best_candidate])),
         "best_metrics_mhz": {"Ej": float(best_ej_mhz), "Ec": float(best_ec_mhz)},
-        "best_cost": float(actual_costs[best_actual_idx]),
+        "predicted_metrics_mhz": {
+            "Ej": float(predicted_ej_mhz),
+            "Ec": float(predicted_ec_mhz),
+        },
+        "best_cost": float(final_costs[0]),
+        "result_source": result_source,
         "generations": generations,
         "population_size": pop_size,
         "mutation_rate": mutation_rate,

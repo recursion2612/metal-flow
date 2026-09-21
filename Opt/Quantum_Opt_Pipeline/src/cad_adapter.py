@@ -88,6 +88,8 @@ class SqdmetalCapacitanceRunner:
         dielectric_material: str = "silicon",
         solver_order: int = 2,
     ) -> None:
+        if not isinstance(n_procs, int) or not 1 <= n_procs <= 15:
+            raise ValueError("Palace supports between 1 and 15 MPI processes")
         self.output_root = Path(output_root)
         self.palace_bin = palace_bin
         self.n_procs = n_procs

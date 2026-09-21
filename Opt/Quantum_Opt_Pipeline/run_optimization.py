@@ -4,6 +4,7 @@ import argparse
 
 from main import run_pipeline
 from src.cad_adapter import create_transmon_design
+from src.palace_cad_interface import DEFAULT_PALACE_PATH
 
 
 def main() -> None:
@@ -11,11 +12,29 @@ def main() -> None:
     parser.add_argument("--output-root", default="run_01")
     parser.add_argument(
         "--palace-bin",
-        default="/Users/akhshatkampassi/Documents/CDAC/quantum_design_env/palace/build/bin/palace",
+        default=DEFAULT_PALACE_PATH,
     )
     parser.add_argument("--population", type=int, default=12)
     parser.add_argument("--generations", type=int, default=10)
     parser.add_argument("--mpi-procs", type=int, default=4)
+    parser.add_argument(
+        "--model-checkpoint",
+        help="Trained .mdlus checkpoint used for prediction-only optimization",
+    )
+    parser.add_argument(
+        "--model-data-log",
+        help="CSV used to restore the samples and normalization for the checkpoint",
+    )
+    parser.add_argument(
+        "--train-surrogate",
+        action="store_true",
+        help="Opt in to active-learning training during optimization",
+    )
+    parser.add_argument(
+        "--use-palace",
+        action="store_true",
+        help="Opt in to Palace evaluation for high-uncertainty candidates",
+    )
     args = parser.parse_args()
 
     design = create_transmon_design()
@@ -26,6 +45,10 @@ def main() -> None:
         generations=args.generations,
         palace_mpi_procs=args.mpi_procs,
         palace_bin=args.palace_bin,
+        model_checkpoint=args.model_checkpoint,
+        model_data_log=args.model_data_log,
+        train_surrogate=args.train_surrogate,
+        use_palace=args.use_palace,
     )
 
 

@@ -1,17 +1,28 @@
 import json
+import os
+import shutil
 import subprocess
 from pathlib import Path
 from collections.abc import Callable
 import numpy as np
 import pandas as pd
 
-# Default Palace binary path
-DEFAULT_PALACE_PATH = '/Users/akhshatkampassi/Documents/CDAC/quantum_design_env/palace/build/bin/palace'
+# Prefer an explicit environment setting, then a Palace executable on PATH.
+DEFAULT_PALACE_PATH = os.environ.get("PALACE_BIN", shutil.which("palace") or "palace")
 
 # Physical Constants
 H_PLANCK = 6.62607015e-34  # J*s
 E_CHARGE = 1.602176634e-19  # C
 PHI_0 = 2.067833848e-15    # Wb
+MAX_PALACE_MPI_PROCS = 15
+
+
+def _validate_mpi_procs(n_procs: int) -> None:
+    if not isinstance(n_procs, int) or not 1 <= n_procs <= MAX_PALACE_MPI_PROCS:
+        raise ValueError(
+            f"Palace supports between 1 and {MAX_PALACE_MPI_PROCS} MPI processes; "
+            f"got {n_procs}"
+        )
 
 
 def update_qiskit_geometry(
@@ -173,6 +184,7 @@ def run_palace_solver(
     """
     Runs AWS Palace via MPI subprocess using the configured binary path.
     """
+    _validate_mpi_procs(n_procs)
     cmd = ["mpirun", "-n", str(n_procs), palace_bin, config_file]
     
     run_dir = Path(config_file).parent

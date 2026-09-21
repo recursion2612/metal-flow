@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import numpy as np
 import pandas as pd
 import torch
@@ -71,6 +72,7 @@ class PhysicsNeMoSurrogate:
             self.data_log_path.parent / "checkpoints" / "nemo_surrogate.mdlus"
         )
         self.optimizer_state_path = self.checkpoint_path.with_suffix(".state.pt")
+        self.evaluation_path = self.checkpoint_path.with_suffix(".evaluation.json")
 
         if physicsnemo is None:
             raise ImportError(
@@ -91,6 +93,7 @@ class PhysicsNeMoSurrogate:
         self.criterion = nn.MSELoss()
         
         self.is_trained = False
+        self.last_evaluation = None
         self.X_train = np.empty((0, n_features), dtype=np.float64)
         self.Y_train = np.empty((0, 2), dtype=np.float64)
         
@@ -103,6 +106,15 @@ class PhysicsNeMoSurrogate:
         self._init_data_log()
         self._load_data_log()
         self._load_checkpoint()
+        if self.evaluation_path.exists():
+            try:
+                self.last_evaluation = json.loads(
+                    self.evaluation_path.read_text(encoding="utf-8")
+                )
+            except (OSError, json.JSONDecodeError) as exc:
+                raise RuntimeError(
+                    f"Unable to load surrogate evaluation {self.evaluation_path}: {exc}"
+                ) from exc
 
     def _init_data_log(self) -> None:
         """Creates the training CSV file with appropriate column headers if missing."""
@@ -164,6 +176,10 @@ class PhysicsNeMoSurrogate:
             "y_max": self.y_max,
             "is_trained": self.is_trained,
         }, self.optimizer_state_path)
+        if self.last_evaluation is not None:
+            self.evaluation_path.write_text(
+                json.dumps(self.last_evaluation, indent=2), encoding="utf-8"
+            )
 
     def log_and_append_sample(self, x: np.ndarray, y: list[float] | np.ndarray) -> None:
         """
@@ -184,23 +200,9 @@ class PhysicsNeMoSurrogate:
         df = pd.DataFrame(record)
         df.to_csv(self.data_log_path, mode="a", header=False, index=False)
 
-    def fit(self, epochs: int = 150) -> None:
-        """
-        Normalizes dataset inputs/targets and trains the neural network.
-        Requires at least 5 simulation points to avoid overfitting trivial solutions.
-        """
-        if len(self.X_train) < 5:
-            return
-
-        # Min-Max Normalization to stable [0, 1] range
-        self.x_min, x_max = self.X_train.min(axis=0), self.X_train.max(axis=0)
-        self.y_min, y_max = self.Y_train.min(axis=0), self.Y_train.max(axis=0)
-        self.x_max = self.x_min + np.maximum(x_max - self.x_min, 1e-8)
-        self.y_max = self.y_min + np.maximum(y_max - self.y_min, 1e-8)
-
-        x_norm = (self.X_train - self.x_min) / (self.x_max - self.x_min)
-        y_norm = (self.Y_train - self.y_min) / (self.y_max - self.y_min)
-
+    def _train_arrays(self, X: np.ndarray, Y: np.ndarray, epochs: int) -> None:
+        x_norm = (X - self.x_min) / (self.x_max - self.x_min)
+        y_norm = (Y - self.y_min) / (self.y_max - self.y_min)
         x_tensor = torch.tensor(x_norm, dtype=torch.float32).to(self.device)
         y_tensor = torch.tensor(y_norm, dtype=torch.float32).to(self.device)
 
@@ -212,8 +214,135 @@ class PhysicsNeMoSurrogate:
             loss.backward()
             self.optimizer.step()
 
+    def _score(
+        self,
+        X: np.ndarray,
+        Y: np.ndarray,
+        target_thresholds: np.ndarray,
+        accuracy_tolerance_percent: float,
+    ) -> dict[str, float]:
+        x_norm = (X - self.x_min) / (self.x_max - self.x_min)
+        self.model.eval()
+        with torch.no_grad():
+            predictions = self.model(
+                torch.tensor(x_norm, dtype=torch.float32).to(self.device)
+            ).cpu().numpy()
+        predictions = predictions * (self.y_max - self.y_min) + self.y_min
+        errors = predictions - Y
+        absolute_errors = np.abs(errors)
+        relative_errors = absolute_errors / np.maximum(np.abs(Y), 1e-8)
+        metrics = {
+            "mse": float(np.mean(errors ** 2)),
+            "rmse": float(np.sqrt(np.mean(errors ** 2))),
+            "mae": float(np.mean(absolute_errors)),
+            "ej_mae_mhz": float(np.mean(absolute_errors[:, 0])),
+            "ec_mae_mhz": float(np.mean(absolute_errors[:, 1])),
+            "ej_accuracy_percent": float(
+                np.mean(relative_errors[:, 0] <= accuracy_tolerance_percent / 100) * 100
+            ),
+            "ec_accuracy_percent": float(
+                np.mean(relative_errors[:, 1] <= accuracy_tolerance_percent / 100) * 100
+            ),
+        }
+        for index, name in enumerate(("ej", "ec")):
+            actual_positive = Y[:, index] >= target_thresholds[index]
+            predicted_positive = predictions[:, index] >= target_thresholds[index]
+            true_positive = np.sum(actual_positive & predicted_positive)
+            false_positive = np.sum(~actual_positive & predicted_positive)
+            false_negative = np.sum(actual_positive & ~predicted_positive)
+            precision = true_positive / max(true_positive + false_positive, 1)
+            recall = true_positive / max(true_positive + false_negative, 1)
+            metrics[f"{name}_precision"] = float(precision)
+            metrics[f"{name}_recall"] = float(recall)
+            metrics[f"{name}_f1"] = float(
+                2 * precision * recall / max(precision + recall, 1e-12)
+            )
+        return metrics
+
+    def fit(
+        self,
+        epochs: int = 150,
+        validation_split: float = 0.2,
+        evaluation_seed: int = 42,
+        accuracy_tolerance_percent: float = 5.0,
+        target_thresholds: tuple[float, float] | None = None,
+    ) -> dict:
+        """
+        Normalizes dataset inputs/targets and trains the neural network.
+        Requires at least 5 simulation points to avoid overfitting trivial solutions.
+        """
+        if len(self.X_train) < 5:
+            return {"status": "insufficient_data", "sample_count": len(self.X_train)}
+
+        if not 0 <= validation_split < 1:
+            raise ValueError("validation_split must be between 0 and 1")
+        if epochs < 1:
+            raise ValueError("epochs must be at least 1")
+        if accuracy_tolerance_percent <= 0:
+            raise ValueError("accuracy_tolerance_percent must be greater than 0")
+
+        sample_count = len(self.X_train)
+        validation_count = int(sample_count * validation_split)
+        if validation_split and validation_count == 0:
+            validation_count = 1
+        if sample_count - validation_count < 2:
+            raise ValueError("validation_split leaves fewer than 2 training samples")
+
+        indices = np.random.default_rng(evaluation_seed).permutation(sample_count)
+        validation_indices = indices[:validation_count]
+        training_indices = indices[validation_count:]
+
+        # Min-Max Normalization to stable [0, 1] range
+        fit_X = self.X_train[training_indices]
+        fit_Y = self.Y_train[training_indices]
+        thresholds = np.asarray(
+            target_thresholds if target_thresholds is not None else np.median(fit_Y, axis=0),
+            dtype=np.float64,
+        )
+        if thresholds.shape != (2,) or not np.all(np.isfinite(thresholds)):
+            raise ValueError("target_thresholds must contain two finite values")
+        self.x_min, x_max = fit_X.min(axis=0), fit_X.max(axis=0)
+        self.y_min, y_max = fit_Y.min(axis=0), fit_Y.max(axis=0)
+        self.x_max = self.x_min + np.maximum(x_max - self.x_min, 1e-8)
+        self.y_max = self.y_min + np.maximum(y_max - self.y_min, 1e-8)
+
+        self._train_arrays(fit_X, fit_Y, epochs)
+        validation_metrics = self._score(
+            self.X_train[validation_indices],
+            self.Y_train[validation_indices],
+            thresholds,
+            accuracy_tolerance_percent,
+        ) if validation_count else None
+
+        # The final checkpoint uses every measured sample after the unbiased score.
+        self.x_min = self.X_train.min(axis=0)
+        self.y_min = self.Y_train.min(axis=0)
+        self.x_max = self.x_min + np.maximum(self.X_train.max(axis=0) - self.x_min, 1e-8)
+        self.y_max = self.y_min + np.maximum(self.Y_train.max(axis=0) - self.y_min, 1e-8)
+        self._train_arrays(self.X_train, self.Y_train, epochs)
+
         self.is_trained = True
+        train_metrics = self._score(
+            self.X_train,
+            self.Y_train,
+            thresholds,
+            accuracy_tolerance_percent,
+        )
+        self.last_evaluation = {
+            "status": "trained",
+            "sample_count": sample_count,
+            "training_samples": int(len(training_indices)),
+            "validation_samples": validation_count,
+            "epochs": epochs,
+            "validation_split": validation_split,
+            "evaluation_seed": evaluation_seed,
+            "accuracy_tolerance_percent": accuracy_tolerance_percent,
+            "target_thresholds": thresholds.tolist(),
+            "train_metrics": train_metrics,
+            "validation_metrics": validation_metrics,
+        }
         self._save_checkpoint()
+        return self.last_evaluation
 
     def predict(self, X: np.ndarray, n_mc_samples: int = 20) -> tuple[np.ndarray, np.ndarray]:
         """
