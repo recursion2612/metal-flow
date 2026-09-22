@@ -4,20 +4,29 @@ This pipeline uses Qiskit Metal geometry, SQDMetal's AWS Palace capacitance back
 
 ## Requirements and installation
 
-Use Python 3.11 on the Linux dev node. The training-only step needs Python,
-PyTorch, NumPy, pandas, and PhysicsNeMo. The Palace data-generation and
-optimization steps additionally need MPI, Gmsh, Palace, Qiskit Metal, and
-SQDMetal.
+Use Python 3.11. The training-only step needs Python, PyTorch, NumPy, pandas,
+and PhysicsNeMo. The Palace data-generation and optimization steps additionally
+need MPI, Gmsh, Palace, Qiskit Metal, and SQDMetal.
 
-From the repository root, install the Python dependencies:
+From the repository root, configure a virtual environment and install the
+local projects. `REPO_ROOT` is derived from the checkout, so no user-specific
+absolute path is required:
 
 ```bash
-python3.11 -m venv .venv
+REPO_ROOT="$(pwd)"
+python3.11 -m venv "$REPO_ROOT/.venv"
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -r Opt/Quantum_Opt_Pipeline/requirements.txt
-python -m pip install -e "quantum_design_env/quantum-metal[mesh]"
-python -m pip install -e quantum_design_env/SQDMetal
+
+# Select CUDA-capable PyTorch when an NVIDIA GPU is available; otherwise use CPU wheels.
+if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1; then
+    python -m pip install -r "$REPO_ROOT/Opt/Quantum_Opt_Pipeline/requirements.txt"
+else
+    python -m pip install -r "$REPO_ROOT/Opt/Quantum_Opt_Pipeline/requirements-cpu.txt"
+fi
+python -m pip install -e "$REPO_ROOT/quantum_design_env/quantum-metal[mesh]"
+python -m pip install -e "$REPO_ROOT/quantum_design_env/SQDMetal"
+python -m pip install -e "$REPO_ROOT/Opt/Quantum_Opt_Pipeline" --no-deps
 ```
 
 Then enter the pipeline directory for all commands below:
@@ -26,8 +35,10 @@ Then enter the pipeline directory for all commands below:
 cd Opt/Quantum_Opt_Pipeline
 ```
 
-The project requires Python `>=3.11,<3.13`. Use a CUDA-compatible PyTorch
-build when training on an NVIDIA GPU.
+The project requires Python `>=3.11,<3.13`. When no usable NVIDIA GPU is
+detected, `requirements-cpu.txt` selects the official PyTorch CPU wheel index.
+When `nvidia-smi -L` succeeds, the standard requirements install is used so a
+CUDA-capable PyTorch wheel can be selected.
 
 The package is installed as `nvidia-physicsnemo` and imported as `physicsnemo`:
 
@@ -44,19 +55,23 @@ nvidia-smi
 python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
 ```
 
-On Linux, install and expose Palace through `PATH`, or set `PALACE_BIN` to its
-absolute path. The command-line `--palace-bin` option has highest precedence.
-The node must also provide `mpirun` and `gmsh` on `PATH`.
+Install Palace with Spack, or build it using the [Palace installation
+guide](https://awslabs.github.io/palace/dev/install/), then expose it through
+`PATH` or set `PALACE_BIN`. The command-line `--palace-bin` option has highest
+precedence. The node must also provide `mpirun` and `gmsh` on `PATH`.
 
 ```bash
-export PALACE_BIN=/path/to/palace
+spack install palace
+export PALACE_BIN="$(spack location -i palace)/bin/palace"
+export PATH="$(dirname "$PALACE_BIN"):$PATH"
 which mpirun
 mpirun --version
 gmsh --version
 "$PALACE_BIN" --help >/dev/null
 ```
 
-macOS can use the model on CPU if the package dependencies install successfully, but it cannot use CUDA.
+The optimizer selects MPS, CUDA, or CPU automatically. On a CPU-only Linux
+node it uses CPU PyTorch; macOS can use CPU or Apple MPS when available.
 
 ## Required integration
 

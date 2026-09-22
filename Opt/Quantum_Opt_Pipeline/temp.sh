@@ -1,2 +1,11 @@
-cd "/private/var/folders/zn/vn5fdgg57zjdj7j_8n9r9vyw0000gn/T/tmplvpf8yrs/smoke"
-/Users/akhshatkampassi/Documents/CDAC/quantum_design_env/palace/build/bin/palace -np 1 -nt 1 smoke.json | tee "/private/var/folders/zn/vn5fdgg57zjdj7j_8n9r9vyw0000gn/T/tmplvpf8yrs/smoke/outputFiles/out.log"
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PALACE_BIN="${PALACE_BIN:-palace}"
+OUTPUT_DIR="${OUTPUT_DIR:-${TMPDIR:-/tmp}/cdac-palace/smoke}"
+
+mkdir -p "${OUTPUT_DIR}/outputFiles"
+cd "${SCRIPT_DIR}"
+"${PALACE_BIN}" -np "${MPI_PROCS:-1}" -nt "${PALACE_THREADS:-1}" smoke.json \
+	| tee "${OUTPUT_DIR}/outputFiles/out.log"
