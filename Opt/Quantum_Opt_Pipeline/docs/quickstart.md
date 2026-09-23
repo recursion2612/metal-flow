@@ -22,7 +22,6 @@ source "${QUANTUM_DESIGN_ENV:-../../quantum_design_env}/.venv/bin/activate" 2>/d
 ```
 
 ### What to Expect
-- **Duration**: ~1–3 minutes.
 - **Output**: Prepares a lean Python environment with `torch`, `physicsnemo`, `quantum-metal`, `SQDMetal`, and `gmsh`.
 - **Verification**: Confirms external tools (`mpirun`, `gmsh`, `palace`) are found or warns if missing.
 
@@ -43,7 +42,6 @@ python generate_samples.py \
 ```
 
 ### What to Expect
-- **Duration**: ~10–15 seconds per sample (~25–35 minutes for 150 samples on modern multi-core CPUs).
 - **Core Allocation**: Automatically reserves 10% of logical CPU cores for host OS stability and runs Palace across the remaining cores via OpenMPI.
 - **Artifacts Created**:
   - `training_run/training_data/active_learning_log.csv`: Full measured dataset.
@@ -70,7 +68,6 @@ python train_surrogate.py \
 ```
 
 ### What to Expect
-- **Duration**: ~15–45 seconds on CPU or GPU.
 - **Model Training**: The network trains on $\log(E_j)$ targets and $\log(L_j)$ features with Monte Carlo dropout.
 - **Early Stopping**: Halts training automatically when validation loss stops improving and restores the best checkpoint.
 - **Evaluation Output**: Evaluates both internal validation and the untouched 20% holdout test partition (`test_samples.csv`), reporting MAE in MHz and relative accuracy within 5%.
@@ -96,11 +93,10 @@ python optimize.py \
 ```
 
 ### What to Expect
-- **Duration**: ~2–5 seconds (surrogate predictions evaluate in milliseconds).
-- **Optimization Process**: Evaluates 100 candidate designs per generation using tournament selection, SBX crossover, and polynomial mutation. Stops early when the best candidate reaches within 5% of target parameters (or up to 20 max generations), simultaneously deleting old generation data to keep disk usage zero.
+- **Optimization Process**: Evaluates 100 candidate designs per generation using tournament selection, SBX crossover, and polynomial mutation. In each generation, the best ranking candidates are simulated with AWS Palace and carried forward as elites into the next generation. Stops early when the best candidate reaches within 5% of target parameters (or up to 20 max generations), simultaneously deleting old generation data to keep disk usage zero.
 - **Artifacts Created**:
-  - `optimization_run/optimization_result.json`: Summary containing the winning parameters (`pad_width`, `pad_height`, `pad_gap`, and $L_j$), predicted $[E_j, E_c]$ values, and final objective cost.
-- **Optional Live Palace Check**: Add `--use-palace` to run an actual Palace finite-element simulation on the winning design to verify surrogate accuracy.
+  - `optimization_run/optimization_result.json`: Summary containing winning parameters (`pad_width`, `pad_height`, `pad_gap`, and $L_j$), predicted frequencies, and verified Palace simulation metrics.
+- **Palace Simulation**: Simulated results from Palace are recorded for the best candidate in each generation and for the final winning design.
 
 ---
 
@@ -113,8 +109,7 @@ python -m pytest -q
 ```
 
 ### What to Expect
-- **Duration**: ~3–5 seconds.
-- **Result**: `17 passed` confirming math transforms, genetic operators, MPI rules, and script integrity.
+- **Result**: All tests passing, confirming math transforms, genetic operators, Palace simulation loop, MPI rules, and script integrity.
 
 ---
 

@@ -15,16 +15,92 @@ DEFAULT_PALACE_PATH = os.environ.get("PALACE_BIN", shutil.which("palace") or "pa
 H_PLANCK = 6.62607015e-34  # J*s
 E_CHARGE = 1.602176634e-19  # C
 PHI_0 = 2.067833848e-15    # Wb
+def _detect_cgroup_cpus() -> int | None:
+    """Detect CPU limit from Linux cgroups v1 or v2 (e.g. Docker container limits)."""
+    # Linux cgroup v2
+    cgroup_v2 = Path("/sys/fs/cgroup/cpu.max")
+    if cgroup_v2.is_file():
+        try:
+            parts = cgroup_v2.read_text(encoding="utf-8").strip().split()
+            if parts and parts[0] != "max":
+                quota, period = float(parts[0]), float(parts[1])
+                if quota > 0 and period > 0:
+                    return max(1, math.ceil(quota / period))
+        except Exception:
+            pass
+
+    # Linux cgroup v1
+    quota_file = Path("/sys/fs/cgroup/cpu/cpu.cfs_quota_us")
+    period_file = Path("/sys/fs/cgroup/cpu/cpu.cfs_period_us")
+    if quota_file.is_file() and period_file.is_file():
+        try:
+            quota = float(quota_file.read_text(encoding="utf-8").strip())
+            period = float(period_file.read_text(encoding="utf-8").strip())
+            if quota > 0 and period > 0:
+                return max(1, math.ceil(quota / period))
+        except Exception:
+            pass
+    return None
+
+
+def _detect_available_cpus() -> int:
+    """
+    Detect the true available logical CPU count, taking into account:
+      - Linux cgroups (Docker container CPU limits / quotas)
+      - Process CPU affinity (sched_getaffinity / taskset)
+      - Python 3.13+ process_cpu_count()
+      - Host physical/logical cpu_count() as fallback
+    """
+    candidates = []
+
+    # 1. Check cgroups (Docker / Kubernetes quota)
+    cg_cnt = _detect_cgroup_cpus()
+    if cg_cnt is not None and cg_cnt > 0:
+        candidates.append(cg_cnt)
+
+    # 2. Check process affinity (Linux)
+    if hasattr(os, "sched_getaffinity"):
+        try:
+            affinity = os.sched_getaffinity(0)
+            if affinity:
+                candidates.append(len(affinity))
+        except Exception:
+            pass
+
+    # 3. Check process_cpu_count (Python 3.13+)
+    if hasattr(os, "process_cpu_count"):
+        try:
+            cnt = os.process_cpu_count()
+            if cnt and cnt > 0:
+                candidates.append(cnt)
+        except Exception:
+            pass
+
+    # 4. Check host logical CPUs
+    host_cpus = os.cpu_count() or 1
+    candidates.append(host_cpus)
+
+    return max(1, min(candidates))
+
+
 def max_mpi_procs(cpu_count: int | None = None) -> int:
-    """Return 90% of logical CPUs, rounded up, for Palace MPI ranks."""
-    detected_cpus = cpu_count if cpu_count is not None else (os.cpu_count() or 1)
+    """Return 90% of logical/available CPUs, rounded up, for Palace MPI ranks."""
+    detected_cpus = cpu_count if cpu_count is not None else _detect_available_cpus()
     if detected_cpus < 1:
         raise ValueError("cpu_count must be positive")
     return max(1, math.ceil(detected_cpus * 0.9))
 
 
 def default_mpi_procs() -> int:
-    """Return the default Palace rank count for this machine."""
+    """Return the default Palace rank count for this machine/process."""
+    env_procs = os.environ.get("MPI_PROCS")
+    if env_procs:
+        try:
+            val = int(env_procs)
+            if 1 <= val <= max_mpi_procs():
+                return val
+        except ValueError:
+            pass
     return max_mpi_procs()
 
 
@@ -190,12 +266,14 @@ def create_palace_config(
 
 def run_palace_solver(
     config_file: str, 
-    n_procs: int = 4, 
+    n_procs: int | None = None, 
     palace_bin: str = DEFAULT_PALACE_PATH
 ) -> bool:
     """
     Runs AWS Palace via MPI subprocess using the configured binary path.
     """
+    if n_procs is None:
+        n_procs = default_mpi_procs()
     _validate_mpi_procs(n_procs)
     cmd = ["mpirun", "-n", str(n_procs), palace_bin, config_file]
     

@@ -13,6 +13,7 @@ from .palace import (
     E_CHARGE,
     H_PLANCK,
     PHI_0,
+    default_mpi_procs,
     max_mpi_procs,
     update_qiskit_geometry,
 )
@@ -86,11 +87,13 @@ class SqdmetalCapacitanceRunner:
         self,
         output_root: str,
         palace_bin: str,
-        n_procs: int = 4,
+        n_procs: int | None = None,
         dielectric_material: str = "silicon",
         solver_order: int = 2,
         retain_visualization: bool = False,
     ) -> None:
+        if n_procs is None:
+            n_procs = default_mpi_procs()
         if not isinstance(n_procs, int) or not 1 <= n_procs <= max_mpi_procs():
             raise ValueError(
                 f"Palace MPI processes must be between 1 and {max_mpi_procs()} "

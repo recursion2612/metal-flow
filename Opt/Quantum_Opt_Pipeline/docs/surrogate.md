@@ -1,6 +1,6 @@
 # PhysicsNeMo Surrogate Modeling
 
-The `train_surrogate.py` script trains a custom Graph Neural Network (GNN) surrogate model backed by **NVIDIA PhysicsNeMo**. The surrogate predicts qubit Hamiltonian parameters $[E_j, E_c]$ in milliseconds, bypassing the multi-minute cost of full finite-element simulations during genetic algorithm iterations.
+The `train_surrogate.py` script trains a custom Graph Neural Network (GNN) surrogate model backed by **NVIDIA PhysicsNeMo**. The surrogate predicts qubit Hamiltonian parameters $[E_j, E_c]$, bypassing the computational cost of full finite-element simulations during genetic algorithm iterations.
 
 ---
 
@@ -9,13 +9,9 @@ The `train_surrogate.py` script trains a custom Graph Neural Network (GNN) surro
 The surrogate is implemented as a `MeshGraphNet`-style graph neural network inheriting from `physicsnemo.Module`:
 
 ```mermaid
-flowchart TD
-    A["Input Vector: [pad_width, pad_height, pad_gap, log(L_j)]"] --> B["Node & Edge Feature Encoders + One-Hot Type Tags"]
-    B --> C["Message Passing GNN Processor (Dropout Regularized)"]
-    C --> D["Readout MLP Network"]
-    D --> E["Normalized Target Predictions: [log(E_j), E_c]"]
-    E --> F["Inverse Target Scaling (Exp & Mean/Std Unscale)"]
-    F --> G["Physical Qubit Parameters: [E_j, E_c] in MHz"]
+flowchart LR
+    A["Qubit Parameters<br/>(Geometry & Inductance)"] --> B["PhysicsNeMo Neural Network<br/>(Graph Message Passing)"]
+    B --> C["Predicted Energy Levels<br/>(Ej, Ec in MHz)"]
 ```
 
 ### 1. Log-Space Target & Feature Transforms

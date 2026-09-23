@@ -10,3 +10,8 @@ data/
 training_data/active_learning_log.csv
 training_data/checkpoints/*
 optimization_result.json
+.DS_Store
+*.DS_Store
+!tests/
+!tests/**
+tests/__pycache__/

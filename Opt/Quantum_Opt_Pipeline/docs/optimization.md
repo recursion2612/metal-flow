@@ -25,13 +25,22 @@ The optimization engine uses real-valued continuous genetic operators:
 3. **Simulated Binary Crossover (SBX)**: Recombines parent parameters continuously with distribution index $\eta_c=2.0$.
 4. **Polynomial Mutation**: Applies continuous perturbation with distribution index $\eta_m=20.0$ and mutation probability $p_m = 1/4 = 0.25$ per gene. Children are strictly clipped to fabrication bounds.
 
+```mermaid
+flowchart LR
+    A["Population Candidates"] --> B["Surrogate Cost Evaluation"]
+    B --> C["Palace Simulation of Elites"]
+    C --> D["Selection & Genetic Operators"]
+    D --> E["Next Generation"]
+    C -.->|"Target Met (<= 5% Error)"| F["Optimal Design"]
+```
+
 ---
 
 ## Execution Modes
 
-### Mode 1: Fast Frozen-Surrogate Optimization (Default)
+### Mode 1: Full Optimization with Live Palace Simulation (Default)
 
-Evaluates all GA candidates strictly using the neural surrogate:
+Evaluates the population with the surrogate, simulates the best ranking candidate(s) using AWS Palace after every generation, passes them as elites to the next iteration, and validates the final winning design:
 
 ```bash
 python optimize.py \
@@ -43,9 +52,9 @@ python optimize.py \
     --palace-bin "$PALACE_BIN"
 ```
 
-### Mode 2: Live Palace Validation (`--use-palace`)
+### Mode 2: Surrogate-Only Optimization (`--no-palace`)
 
-Runs the full optimization with the surrogate, then automatically sends the final winning candidate to AWS Palace for full-wave finite-element verification:
+Evaluates all GA candidates strictly using the neural surrogate without running external finite-element simulations (useful for rapid testing or offline exploration):
 
 ```bash
 python optimize.py \
@@ -54,8 +63,7 @@ python optimize.py \
     --model-data-log training_run/training_data/train_samples.csv \
     --population 100 \
     --generations 20 \
-    --use-palace \
-    --palace-bin "$PALACE_BIN"
+    --no-palace
 ```
 
 ---

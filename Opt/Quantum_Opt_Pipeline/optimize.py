@@ -55,8 +55,22 @@ def main() -> None:
     )
     parser.add_argument(
         "--use-palace",
+        dest="use_palace",
         action="store_true",
-        help="Opt in to Palace evaluation for high-uncertainty candidates",
+        default=True,
+        help="Simulate best ranking candidates with Palace after each generation and evaluate final design (default: True)",
+    )
+    parser.add_argument(
+        "--no-palace",
+        dest="use_palace",
+        action="store_false",
+        help="Disable live Palace simulation (surrogate evaluation only)",
+    )
+    parser.add_argument(
+        "--palace-elites",
+        type=int,
+        default=1,
+        help="Number of best ranking candidates to simulate with Palace each generation (default: 1)",
     )
     args = parser.parse_args()
 
@@ -75,6 +89,7 @@ def main() -> None:
         model_data_log=args.model_data_log,
         train_surrogate=args.train_surrogate,
         use_palace=args.use_palace,
+        palace_elites=args.palace_elites,
     )
 
 
