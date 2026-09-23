@@ -14,7 +14,12 @@ DOCKER_ARGS="-v \"$SCRIPT_DIR:/workspace\" -w /workspace"
 
 # Mount external Palace executable if provided and exists
 if [ -n "${PALACE_BIN:-}" ] && [ -x "$PALACE_BIN" ]; then
-    DOCKER_ARGS="$DOCKER_ARGS -v \"$PALACE_BIN:/usr/local/bin/palace:ro\" -e PALACE_BIN=/usr/local/bin/palace"
+    if [ "$(uname -s)" = "Darwin" ] && file "$PALACE_BIN" 2>/dev/null | grep -q "Mach-O"; then
+        printf "Notice: Host PALACE_BIN (%s) is a macOS binary and cannot run inside Linux container.\n" "$PALACE_BIN" >&2
+        printf "Inside the container, ensure a Linux Palace binary is mounted or available on PATH.\n" >&2
+    else
+        DOCKER_ARGS="$DOCKER_ARGS -v \"$PALACE_BIN:/usr/local/bin/palace:ro\" -e PALACE_BIN=/usr/local/bin/palace"
+    fi
 elif [ -n "${PALACE_BIN:-}" ]; then
     DOCKER_ARGS="$DOCKER_ARGS -e PALACE_BIN=$PALACE_BIN"
 fi

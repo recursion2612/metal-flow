@@ -14,6 +14,11 @@ ENV QUANTUM_DESIGN_ENV=/opt/quantum_design_env
 ENV PALACE_BIN=/usr/local/bin/palace
 ENV PATH="/usr/local/bin:${PATH}"
 
+# OpenMPI container configuration (safe execution in headless/root containers)
+ENV OMPI_ALLOW_RUN_AS_ROOT=1
+ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+ENV OMPI_MCA_btl_vader_single_copy_mechanism=none
+
 # Install core system packages for OpenMPI, Gmsh, OpenGL headless meshing, and git
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \

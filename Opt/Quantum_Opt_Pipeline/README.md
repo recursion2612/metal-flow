@@ -5,7 +5,7 @@
 [![Solver](https://img.shields.io/badge/Solver-AWS%20Palace-FF9900.svg)](https://awslabs.github.io/palace/)
 [![Surrogate](https://img.shields.io/badge/Surrogate-NVIDIA%20PhysicsNeMo-76B900.svg)](https://github.com/NVIDIA/physicsnemo)
 [![CAD](https://img.shields.io/badge/CAD-Qiskit%20Metal-6929C4.svg)](https://qiskit-community.github.io/qiskit-metal/)
-[![Tests](https://img.shields.io/badge/Tests-15%20Passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-17%20Passing-brightgreen.svg)](tests/)
 
 A hybrid CAD and machine learning framework for superconducting transmon qubit design optimization. The pipeline integrates **Qiskit Metal** parameterization, **SQDMetal** + **AWS Palace** finite-element capacitance simulation, an **NVIDIA PhysicsNeMo** surrogate neural network, and a **real-valued Genetic Algorithm (GA)**.
 
@@ -138,11 +138,11 @@ python optimize.py \
     --output-root optimization_run \
     --model-checkpoint training_run/training_data/checkpoints/nemo_surrogate.mdlus \
     --model-data-log training_run/training_data/train_samples.csv \
-    --population 12 \
-    --generations 10 \
+    --population 100 \
+    --generations 20 \
     --palace-bin "$PALACE_BIN"
 ```
-- **What to expect**: Evaluates 120 candidate designs in ~2–5 seconds using the neural surrogate for real-time scoring.
+- **What to expect**: Evaluates 100 candidate designs per generation in ~2–5 seconds with real-time surrogate scoring. Variable generation loop automatically terminates as soon as the best candidate reaches within 5% of target parameters (or up to 20 max generations), simultaneously deleting old generation data to keep disk usage zero.
 - **Outputs**: Writes winning parameters (`pad_width`, `pad_height`, `pad_gap`, and $L_j$) and predicted frequencies to `optimization_run/optimization_result.json`. Add `--use-palace` to run a live Palace simulation on the final winner.
 
 ---
@@ -152,7 +152,7 @@ python optimize.py \
 ```bash
 python -m pytest -q
 ```
-- **What to expect**: Runs 15 unit tests in ~3 seconds, verifying genetic operators, math transforms, MPI bounds, and script syntax.
+- **What to expect**: Runs 17 unit tests in ~3 seconds, verifying genetic operators, variable stopping, math transforms, MPI bounds, and script syntax.
 
 ---
 
@@ -167,8 +167,9 @@ python -m pytest -q
 | `train_surrogate.py` | `--epochs` | `2000` | Maximum number of training epochs |
 | | `--early-stopping-patience`| `200` | Epochs without validation improvement before early termination |
 | | `--evaluation-output` | `None` | Path to export test-set performance metrics JSON |
-| `optimize.py` | `--population` | `12` | Number of candidate designs per GA generation |
-| | `--generations` | `10` | Total generations to evolve |
+| `optimize.py` | `--population` | `100` | Number of candidate designs per GA generation |
+| | `--generations` | `20` | Maximum budget of variable generations to evolve |
+| | `--target-tolerance` | `0.05` | Early stopping tolerance (stops when within 5% of target params) |
 | | `--use-palace` | `False` | Run full-wave Palace validation solve on winning candidate |
 | | `--mpi-procs` | dynamic | Override MPI rank count (capped at $\lceil 0.90 \times \text{cores} \rceil$) |
 

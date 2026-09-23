@@ -14,8 +14,31 @@ def main() -> None:
         "--palace-bin",
         default=DEFAULT_PALACE_PATH,
     )
-    parser.add_argument("--population", type=int, default=12)
-    parser.add_argument("--generations", type=int, default=10)
+    parser.add_argument("--population", type=int, default=100, help="GA population size (default: 100)")
+    parser.add_argument(
+        "--generations",
+        type=int,
+        default=20,
+        help="Maximum number of variable generations (default: 20)",
+    )
+    parser.add_argument(
+        "--target-tolerance",
+        type=float,
+        default=0.05,
+        help="Target parameter relative tolerance for early stopping (default: 0.05 = 5%%)",
+    )
+    parser.add_argument(
+        "--ej-target",
+        type=float,
+        default=20000.0,
+        help="Target Josephson energy in MHz (default: 20000.0)",
+    )
+    parser.add_argument(
+        "--ec-target",
+        type=float,
+        default=320.0,
+        help="Target charging energy in MHz (default: 320.0)",
+    )
     parser.add_argument("--mpi-procs", type=int, default=default_mpi_procs())
     parser.add_argument(
         "--model-checkpoint",
@@ -43,6 +66,9 @@ def main() -> None:
         output_root=args.output_root,
         pop_size=args.population,
         generations=args.generations,
+        target_tolerance=args.target_tolerance,
+        ej_target=args.ej_target,
+        ec_target=args.ec_target,
         palace_mpi_procs=args.mpi_procs,
         palace_bin=args.palace_bin,
         model_checkpoint=args.model_checkpoint,

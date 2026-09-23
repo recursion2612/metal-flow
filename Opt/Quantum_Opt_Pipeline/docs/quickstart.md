@@ -90,14 +90,14 @@ python optimize.py \
     --output-root optimization_run \
     --model-checkpoint training_run/training_data/checkpoints/nemo_surrogate.mdlus \
     --model-data-log training_run/training_data/train_samples.csv \
-    --population 12 \
-    --generations 10 \
+    --population 100 \
+    --generations 20 \
     --palace-bin "$PALACE_BIN"
 ```
 
 ### What to Expect
 - **Duration**: ~2–5 seconds (surrogate predictions evaluate in milliseconds).
-- **Optimization Process**: Evaluates 120 candidate designs across 10 generations using tournament selection, SBX crossover, and polynomial mutation.
+- **Optimization Process**: Evaluates 100 candidate designs per generation using tournament selection, SBX crossover, and polynomial mutation. Stops early when the best candidate reaches within 5% of target parameters (or up to 20 max generations), simultaneously deleting old generation data to keep disk usage zero.
 - **Artifacts Created**:
   - `optimization_run/optimization_result.json`: Summary containing the winning parameters (`pad_width`, `pad_height`, `pad_gap`, and $L_j$), predicted $[E_j, E_c]$ values, and final objective cost.
 - **Optional Live Palace Check**: Add `--use-palace` to run an actual Palace finite-element simulation on the winning design to verify surrogate accuracy.
@@ -114,7 +114,7 @@ python -m pytest -q
 
 ### What to Expect
 - **Duration**: ~3–5 seconds.
-- **Result**: `15 passed` confirming math transforms, genetic operators, MPI rules, and script integrity.
+- **Result**: `17 passed` confirming math transforms, genetic operators, MPI rules, and script integrity.
 
 ---
 

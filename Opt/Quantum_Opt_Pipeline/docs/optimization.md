@@ -38,8 +38,8 @@ python optimize.py \
     --output-root optimization_run \
     --model-checkpoint training_run/training_data/checkpoints/nemo_surrogate.mdlus \
     --model-data-log training_run/training_data/train_samples.csv \
-    --population 12 \
-    --generations 10 \
+    --population 100 \
+    --generations 20 \
     --palace-bin "$PALACE_BIN"
 ```
 
@@ -52,11 +52,23 @@ python optimize.py \
     --output-root optimization_run \
     --model-checkpoint training_run/training_data/checkpoints/nemo_surrogate.mdlus \
     --model-data-log training_run/training_data/train_samples.csv \
-    --population 12 \
-    --generations 10 \
+    --population 100 \
+    --generations 20 \
     --use-palace \
     --palace-bin "$PALACE_BIN"
 ```
+
+---
+
+## Variable Generations & Simultaneous Cleanup
+
+1. **Variable Generations (Target Convergence)**:
+   - The `--generations` argument (default: `20`) serves as a maximum budget ceiling.
+   - At each generation, the best candidate is evaluated against target Hamiltonian parameters ($E_j^{\text{target}}, E_c^{\text{target}}$).
+   - If the relative error of both parameters is within the tolerance threshold (default: `--target-tolerance 0.05` = 5%) and the transmon regime condition ($E_j / E_c \ge 40$) is satisfied, the algorithm terminates early.
+2. **Simultaneous Generation Cleanup**:
+   - Intermediate generation checkpoints (`generation_XX.json`) and previous transient data are deleted simultaneously each time the GA advances to a new generation.
+   - Any stale Palace simulation folders are automatically pruned before final validation, keeping disk usage zero.
 
 ---
 
@@ -66,25 +78,35 @@ Results are written to `<output-root>/optimization_result.json`:
 
 ```json
 {
-  "best_cost": 0.000341,
-  "best_params": [
-    485.23,
-    42.10,
-    24.85,
-    9.15e-9
-  ],
-  "param_names": [
-    "Q1.pad_width",
-    "Q1.pad_height",
-    "Q1.pad_gap",
-    "lj"
-  ],
-  "predicted_Ej_MHz": 18240.5,
-  "predicted_Ec_MHz": 248.3,
-  "measured_Ej_MHz": 18235.1,
-  "measured_Ec_MHz": 248.1,
-  "result_source": "palace_simulation",
-  "population_size": 12,
-  "generations": 10
+  "best_parameters": {
+    "Q1.pad_width": 485.23,
+    "Q1.pad_height": 42.1,
+    "Q1.pad_gap": 24.85,
+    "lj": 9.15e-9
+  },
+  "best_metrics_mhz": {
+    "Ej": 19850.5,
+    "Ec": 322.1
+  },
+  "predicted_metrics_mhz": {
+    "Ej": 19850.5,
+    "Ec": 322.1
+  },
+  "target_metrics_mhz": {
+    "Ej": 20000.0,
+    "Ec": 320.0
+  },
+  "relative_error": {
+    "Ej": 0.00748,
+    "Ec": 0.00656,
+    "max_error": 0.00748
+  },
+  "converged_within_tolerance": true,
+  "target_tolerance": 0.05,
+  "generations_completed": 7,
+  "max_generations": 20,
+  "population_size": 100,
+  "best_cost": 0.000049,
+  "result_source": "Frozen surrogate evaluation only"
 }
 ```

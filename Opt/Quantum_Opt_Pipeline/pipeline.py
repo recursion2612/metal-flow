@@ -1,5 +1,7 @@
+import gc
 import json
 from pathlib import Path
+import shutil
 import numpy as np
 
 from src.palace import (
@@ -15,8 +17,11 @@ from src.cad import SqdmetalCapacitanceRunner
 def run_pipeline(
     design,
     output_root: str = ".",
-    pop_size: int = 12,
-    generations: int = 10,
+    pop_size: int = 100,
+    generations: int = 20,
+    target_tolerance: float = 0.05,
+    ej_target: float = 20000.0,
+    ec_target: float = 320.0,
     palace_mpi_procs: int = default_mpi_procs(),
     palace_bin: str = DEFAULT_PALACE_PATH,
     palace_evaluator=None,
@@ -100,24 +105,82 @@ def run_pipeline(
     print(f"Components Bound  : {param_names}")
     print("=" * 75)
 
+    generation_data_dir = output_root / "generation_data"
+    generation_data_dir.mkdir(parents=True, exist_ok=True)
+
     # -------------------------------------------------------------------------
-    # 3. Inference-only Genetic Optimization Loop
+    # 3. Inference-only Genetic Optimization Loop (Variable Generations)
     # -------------------------------------------------------------------------
+    converged = False
+    completed_generations = 0
+
     for gen in range(generations):
+        completed_generations = gen + 1
         costs = np.zeros(pop_size)
         predictions, _ = surrogate.predict(population)
 
         for i in range(pop_size):
             ej_mhz, ec_mhz = predictions[i]
-            costs[i] = compute_cost(ej_mhz, ec_mhz)
+            costs[i] = compute_cost(
+                ej_mhz, ec_mhz, ej_target=ej_target, ec_target=ec_target
+            )
 
-        best_idx = np.argmin(costs)
-        best_cost = costs[best_idx]
+        best_idx = int(np.argmin(costs))
+        best_cost = float(costs[best_idx])
+        best_ej_pred, best_ec_pred = predictions[best_idx]
+        best_candidate = population[best_idx]
+
+        # Calculate relative errors to target Hamiltonian parameters
+        ej_rel_err = abs(best_ej_pred - ej_target) / ej_target
+        ec_rel_err = abs(best_ec_pred - ec_target) / ec_target
+        max_rel_err = max(ej_rel_err, ec_rel_err)
+
         print(
             f"Gen {gen:02d}/{generations:02d} | "
             f"Best Cost: {best_cost:.5f} | "
-            f"Palace Runs (Gen/Total): 00/{len(surrogate.X_train):03d}"
+            f"Pred Ej: {best_ej_pred:.1f} MHz (err: {ej_rel_err * 100:.1f}%) | "
+            f"Pred Ec: {best_ec_pred:.1f} MHz (err: {ec_rel_err * 100:.1f}%)"
         )
+
+        # Simultaneously delete old generation checkpoint files to clean up after itself
+        for old_file in generation_data_dir.glob("generation_*.json"):
+            old_file.unlink(missing_ok=True)
+
+        # Write current generation state checkpoint
+        current_gen_file = generation_data_dir / f"generation_{gen:02d}.json"
+        current_gen_file.write_text(
+            json.dumps(
+                {
+                    "generation": gen,
+                    "best_cost": best_cost,
+                    "predicted_Ej_MHz": float(best_ej_pred),
+                    "predicted_Ec_MHz": float(best_ec_pred),
+                    "Ej_error_percent": float(ej_rel_err * 100),
+                    "Ec_error_percent": float(ec_rel_err * 100),
+                    "max_error_percent": float(max_rel_err * 100),
+                    "best_parameters": dict(zip(param_names, [float(v) for v in best_candidate])),
+                },
+                indent=2,
+            )
+            + "\n"
+        )
+
+        # Variable stopping: Check if candidate is within tolerance (default: 5%)
+        # and satisfies physical regime conditions (transmon ratio Ej/Ec >= 40)
+        ratio = best_ej_pred / max(1e-3, best_ec_pred)
+        if (
+            max_rel_err <= target_tolerance
+            and ratio >= 40.0
+            and 15000.0 <= best_ej_pred <= 30000.0
+            and 300.0 <= best_ec_pred <= 500.0
+        ):
+            print(
+                f"\n--> Convergence achieved: best candidate is within {target_tolerance * 100:.1f}% "
+                f"of target params at generation {gen} (Ej err: {ej_rel_err * 100:.2f}%, Ec err: {ec_rel_err * 100:.2f}%)."
+            )
+            print(f"--> Stopping early after {completed_generations} variable generations.")
+            converged = True
+            break
 
         if gen < generations - 1:
             population = produce_next_generation(
@@ -129,25 +192,36 @@ def run_pipeline(
                 mutation_rate=mutation_rate,
             )
 
+        # Free temporary array allocations between generations
+        gc.collect()
+
     # -------------------------------------------------------------------------
-    # 4. Results Summary
+    # 4. Results Summary & Final Cleanup
     # -------------------------------------------------------------------------
     best_idx = int(np.argmin(costs))
     best_candidate = population[best_idx]
     predicted_ej_mhz, predicted_ec_mhz = predictions[best_idx]
+    best_ej_err = abs(predicted_ej_mhz - ej_target) / ej_target
+    best_ec_err = abs(predicted_ec_mhz - ec_target) / ec_target
 
-    final_run_name = f"final_selection_gen_{generations - 1:02d}"
+    final_run_name = f"final_selection_gen_{completed_generations - 1:02d}"
     if use_palace:
+        # Clean up any stale Palace simulation directories before final verification
+        if palace_root.exists():
+            for child in palace_root.iterdir():
+                if child.is_dir() and child.name != final_run_name:
+                    shutil.rmtree(child, ignore_errors=True)
+
         update_qiskit_geometry(design, best_candidate, param_names, default_unit="um")
         if callable(evaluator):
             best_ej_mhz, best_ec_mhz = evaluator(design, best_candidate, final_run_name)
         else:
             best_ej_mhz, best_ec_mhz = evaluator.evaluate(design, best_candidate, final_run_name)
-        final_costs = np.array([compute_cost(best_ej_mhz, best_ec_mhz)])
+        final_costs = np.array([compute_cost(best_ej_mhz, best_ec_mhz, ej_target=ej_target, ec_target=ec_target)])
         result_source = "Palace validation of frozen surrogate-selected design"
     else:
         best_ej_mhz, best_ec_mhz = predicted_ej_mhz, predicted_ec_mhz
-        final_costs = np.array([compute_cost(best_ej_mhz, best_ec_mhz)])
+        final_costs = np.array([compute_cost(best_ej_mhz, best_ec_mhz, ej_target=ej_target, ec_target=ec_target)])
         result_source = "Frozen surrogate evaluation only"
 
     result = {
@@ -157,10 +231,19 @@ def run_pipeline(
             "Ej": float(predicted_ej_mhz),
             "Ec": float(predicted_ec_mhz),
         },
+        "target_metrics_mhz": {"Ej": float(ej_target), "Ec": float(ec_target)},
+        "relative_error": {
+            "Ej": float(best_ej_err),
+            "Ec": float(best_ec_err),
+            "max_error": float(max(best_ej_err, best_ec_err)),
+        },
+        "converged_within_tolerance": bool(max(best_ej_err, best_ec_err) <= target_tolerance),
+        "target_tolerance": float(target_tolerance),
+        "generations_completed": completed_generations,
+        "max_generations": generations,
+        "population_size": pop_size,
         "best_cost": float(final_costs[0]),
         "result_source": result_source,
-        "generations": generations,
-        "population_size": pop_size,
         "mutation_rate": mutation_rate,
         "palace_samples": int(len(surrogate.X_train)),
         "palace_executable": palace_bin,
@@ -171,10 +254,17 @@ def run_pipeline(
     }
     result_path = output_root / "optimization_result.json"
     result_path.write_text(json.dumps(result, indent=2) + "\n")
-    
+
+    # Clean up transient generation data folder now that final manifest is written
+    if generation_data_dir.exists():
+        shutil.rmtree(generation_data_dir, ignore_errors=True)
+
     print("\n" + "=" * 75)
     print("OPTIMIZATION FINISHED")
     print("=" * 75)
+    print(f"Generations Run      : {completed_generations} (Max: {generations}, Converged: {result['converged_within_tolerance']})")
+    print(f"Population Size      : {pop_size}")
+    print(f"Target Errors        : Ej: {best_ej_err * 100:.2f}%, Ec: {best_ec_err * 100:.2f}% (Tolerance: {target_tolerance * 100:.1f}%)")
     print("Optimal Parameters:")
     for name, val in zip(param_names, best_candidate):
         if name.lower() in ["lj", "l_j"]:
