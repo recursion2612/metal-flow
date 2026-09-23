@@ -8,7 +8,9 @@ AWS Palace solves large-scale 3D finite-element electromagnetic systems in paral
 
 The pipeline reserves **at least 10% of total logical CPU cores** for host OS background tasks and uses the remaining cores for Palace MPI execution:
 
-$$\\text{MPI Ranks} = \\max\\left(1, \\left\\lceil 0.90 \\times \\text{logical\\_cpu\\_count} \\right\\rceil\\right)$$
+$$
+\text{MPI Ranks} = \max\left(1, \left\lceil 0.90 \times \text{logical\_cpu\_count} \right\rceil\right)
+$$
 
 There is no arbitrary hard cap (e.g. 15 cores); the limit scales dynamically with any machine:
 

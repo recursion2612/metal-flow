@@ -1,6 +1,6 @@
 # Genetic Algorithm Optimization
 
-The `optimize.py` script executes a real-valued Genetic Algorithm (GA) to discover transmon qubit geometry and circuit parameters that match target Hamiltonian energy levels ($E_j^*, E_c^*$).
+The `optimize.py` script executes a real-valued Genetic Algorithm (GA) to discover transmon qubit geometry and circuit parameters that match target Hamiltonian energy levels ($E_j^{\text{target}}, E_c^{\text{target}}$).
 
 ---
 
@@ -8,9 +8,11 @@ The `optimize.py` script executes a real-valued Genetic Algorithm (GA) to discov
 
 Candidates are scored using a normalized quadratic relative-error cost function:
 
-$$\\text{Cost}(x) = \\left(\\frac{\\hat{E}_j(x) - E_j^*}{E_j^*}\\right)^2 + \\left(\\frac{\\hat{E}_c(x) - E_c^*}{E_c^*}\\right)^2$$
+$$
+\text{Cost}(x) = \left(\frac{\hat{E}_j(x) - E_j^{\text{target}}}{E_j^{\text{target}}}\right)^2 + \left(\frac{\hat{E}_c(x) - E_c^{\text{target}}}{E_c^{\text{target}}}\right)^2
+$$
 
-Where $\\hat{E}_j$ and $\\hat{E}_c$ are predicted in real-time by the frozen PhysicsNeMo surrogate. The global optimum is $\\text{Cost}=0$.
+Where $\hat{E}_j$ and $\hat{E}_c$ are predicted in real-time by the frozen PhysicsNeMo surrogate. The global optimum is $\text{Cost}=0$.
 
 ---
 
@@ -20,8 +22,8 @@ The optimization engine uses real-valued continuous genetic operators:
 
 1. **Tournament Selection**: Chooses the fittest individual among 3 randomly selected candidates.
 2. **Elitism**: Clones the top 2 fittest candidates directly into the next generation without modification.
-3. **Simulated Binary Crossover (SBX)**: Recombines parent parameters continuously with distribution index $\\eta_c=2.0$.
-4. **Polynomial Mutation**: Applies continuous perturbation with distribution index $\\eta_m=20.0$ and mutation probability $p_m = 1/4 = 0.25$ per gene. Children are strictly clipped to fabrication bounds.
+3. **Simulated Binary Crossover (SBX)**: Recombines parent parameters continuously with distribution index $\eta_c=2.0$.
+4. **Polynomial Mutation**: Applies continuous perturbation with distribution index $\eta_m=20.0$ and mutation probability $p_m = 1/4 = 0.25$ per gene. Children are strictly clipped to fabrication bounds.
 
 ---
 

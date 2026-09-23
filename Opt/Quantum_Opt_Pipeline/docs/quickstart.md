@@ -71,7 +71,7 @@ python train_surrogate.py \
 
 ### What to Expect
 - **Duration**: ~15–45 seconds on CPU or GPU.
-- **Model Training**: The network trains on $\\log(E_j)$ targets and $\\log(L_j)$ features with Monte Carlo dropout.
+- **Model Training**: The network trains on $\log(E_j)$ targets and $\log(L_j)$ features with Monte Carlo dropout.
 - **Early Stopping**: Halts training automatically when validation loss stops improving and restores the best checkpoint.
 - **Evaluation Output**: Evaluates both internal validation and the untouched 20% holdout test partition (`test_samples.csv`), reporting MAE in MHz and relative accuracy within 5%.
 - **Artifacts Created**:
@@ -99,7 +99,7 @@ python optimize.py \
 - **Duration**: ~2–5 seconds (surrogate predictions evaluate in milliseconds).
 - **Optimization Process**: Evaluates 120 candidate designs across 10 generations using tournament selection, SBX crossover, and polynomial mutation.
 - **Artifacts Created**:
-  - `optimization_run/optimization_result.json`: Summary containing the winning parameters ($pad\\_width$, $pad\\_height$, $pad\\_gap$, $L_j$), predicted $[E_j, E_c]$ values, and final objective cost.
+  - `optimization_run/optimization_result.json`: Summary containing the winning parameters (`pad_width`, `pad_height`, `pad_gap`, and $L_j$), predicted $[E_j, E_c]$ values, and final objective cost.
 - **Optional Live Palace Check**: Add `--use-palace` to run an actual Palace finite-element simulation on the winning design to verify surrogate accuracy.
 
 ---

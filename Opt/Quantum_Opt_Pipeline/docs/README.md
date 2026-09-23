@@ -12,7 +12,7 @@ Explore the documentation organized by topic:
 | :--- | :--- | :--- |
 | **[Quick Start Guide](quickstart.md)** | Step-by-Step Walkthrough | Complete end-to-end tutorial detailing commands and what to expect at each step. |
 | **[Environment Setup](setup.md)** | Setup & Dependencies | Containerized Docker setup, virtual environment, and lean dependency profile. |
-| **[MPI Resource Policy](mpi_policy.md)** | Resource Management | Automated $\\lceil 0.90 \\times \\text{cores} \\rceil$ allocation reserving 10% for OS stability. |
+| **[MPI Resource Policy](mpi_policy.md)** | Resource Management | Automated $\lceil 0.90 \times \text{cores} \rceil$ allocation reserving 10% for OS stability. |
 | **[Sample Generation](sampling.md)** | Dataset Exploration | Parameter bounds, Latin Hypercube Sampling, boundary coverage, and 70/10/20 splits. |
 | **[Surrogate Modeling](surrogate.md)** | Neural Network | PhysicsNeMo GNN architecture, log-scale physics transforms, dropout uncertainty, and training. |
 | **[Genetic Optimization](optimization.md)** | Design Search | Real-valued GA engine, objective cost function, crossover, mutation, and Palace validation. |

@@ -52,7 +52,7 @@ python train_surrogate.py \
     --early-stopping-patience 200 \
     --evaluation-output training_run/training_data/checkpoints/training_evaluation.json
 ```
-- **What to expect**: Fits the PhysicsNeMo GNN on $\\log(E_j)$ and $\\log(L_j)$ in ~15–45s. Stops automatically when validation loss plateaus and restores the best weights.
+- **What to expect**: Fits the PhysicsNeMo GNN on $\log(E_j)$ and $\log(L_j)$ in ~15–45s. Stops automatically when validation loss plateaus and restores the best weights.
 - **Outputs**: Writes `nemo_surrogate.mdlus`, `nemo_surrogate.state.pt`, and `training_evaluation.json` (reporting relative accuracy within 5%, MAE, and independent test score).
 
 ---
@@ -69,7 +69,7 @@ python optimize.py \
     --palace-bin "$PALACE_BIN"
 ```
 - **What to expect**: Evaluates 120 candidate designs in ~2–5 seconds using the neural surrogate for real-time scoring.
-- **Outputs**: Writes winning parameters ($pad\\_width$, $pad\\_height$, $pad\\_gap$, $L_j$) and predicted frequencies to `optimization_run/optimization_result.json`. Add `--use-palace` to run a live Palace simulation on the final winner.
+- **Outputs**: Writes winning parameters (`pad_width`, `pad_height`, `pad_gap`, and $L_j$) and predicted frequencies to `optimization_run/optimization_result.json`. Add `--use-palace` to run a live Palace simulation on the final winner.
 
 ---
 
@@ -116,7 +116,7 @@ Detailed operational guides, mathematical formulations, and reference manuals ar
 | :--- | :--- | :--- |
 | **[Quick Start Guide](docs/quickstart.md)** | Step-by-Step | Complete end-to-end tutorial with detailed phase expectations and outputs. |
 | **[Environment Setup](docs/setup.md)** | Setup & Dependencies | Docker build & run commands, native virtualenv, and lean dependency profile. |
-| **[MPI Resource Policy](docs/mpi_policy.md)** | Resource Management | $\\lceil 0.90 \\times \\text{cores} \\rceil$ allocation reserving 10% for OS background tasks. |
+| **[MPI Resource Policy](docs/mpi_policy.md)** | Resource Management | $\lceil 0.90 \times \text{cores} \rceil$ allocation reserving 10% for OS background tasks. |
 | **[Sample Generation](docs/sampling.md)** | Design Exploration | Parameter bounds, Latin Hypercube Sampling, and 70/10/20 data partitioning. |
 | **[Surrogate Modeling](docs/surrogate.md)** | Neural Network | PhysicsNeMo GNN architecture, log-scale physics transforms, and training. |
 | **[Genetic Optimization](docs/optimization.md)** | Design Search | Real-valued GA engine, objective cost function, operators, and Palace validation. |

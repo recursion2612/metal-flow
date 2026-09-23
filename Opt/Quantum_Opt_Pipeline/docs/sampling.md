@@ -10,14 +10,14 @@ The pipeline explores four continuous geometric and circuit variables:
 
 | Index | Parameter Key | Description | Range | Unit |
 | :---: | :--- | :--- | :---: | :---: |
-| 0 | `Q1.pad_width` | Transmon capacitor pad width | 300.0 to 600.0 | $\\mu\\text{m}$ |
-| 1 | `Q1.pad_height` | Transmon capacitor pad height | 20.0 to 80.0 | $\\mu\\text{m}$ |
-| 2 | `Q1.pad_gap` | Gap between pad and ground pocket | 10.0 to 40.0 | $\\mu\\text{m}$ |
-| 3 | `lj` | Josephson junction linear inductance | 6.0 to 14.0 | $\\text{nH}$ |
+| 0 | `Q1.pad_width` | Transmon capacitor pad width | 300.0 to 600.0 | µm |
+| 1 | `Q1.pad_height` | Transmon capacitor pad height | 20.0 to 80.0 | µm |
+| 2 | `Q1.pad_gap` | Gap between pad and ground pocket | 10.0 to 40.0 | µm |
+| 3 | `lj` | Josephson junction linear inductance | 6.0 to 14.0 | nH |
 
 Target Hamiltonian energies derived from simulation:
 - **$E_j$ (Josephson Energy)**: Calculated in MHz from Josephson inductance $L_j$.
-- **$E_c$ (Charging Energy)**: Calculated in MHz from Maxwell self-capacitance $C_\\Sigma$.
+- **$E_c$ (Charging Energy)**: Calculated in MHz from Maxwell self-capacitance $C_\Sigma$.
 
 ---
 

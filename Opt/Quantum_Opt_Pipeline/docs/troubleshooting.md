@@ -30,7 +30,7 @@ This guide resolves common runtime, environment, and solver issues encountered w
 
 ### 3. `ValueError: Palace MPI processes must be between 1 and X on this machine`
 - **Cause**: The value passed to `--mpi-procs` exceeds the 90% core allocation ceiling.
-- **Resolution**: Omit `--mpi-procs` to allow the pipeline to automatically calculate the safe maximum for your CPU, or pass a value $\\le \\lceil 0.90 \\times \\text{cores} \\rceil$.
+- **Resolution**: Omit `--mpi-procs` to allow the pipeline to automatically calculate the safe maximum for your CPU, or pass a value $\le \lceil 0.90 \times \text{cores} \rceil$.
 
 ### 4. `FileNotFoundError: SQDMetal did not produce terminal-C.csv`
 - **Cause**: Palace solver execution failed or exited prematurely.

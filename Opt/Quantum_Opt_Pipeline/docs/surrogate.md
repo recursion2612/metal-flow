@@ -31,14 +31,14 @@ Input Vector [pad_width, pad_height, pad_gap, log(L_j)]
 ```
 
 ### 1. Log-Space Target & Feature Transforms
-- **$E_j$ Target Scaling**: Because Josephson energy scales reciprocally with junction inductance ($E_j \\propto 1/L_j$), linear neural networks struggle with extreme curvatures. Training in log space via $\\log(E_j)$ linearizes the optimization landscape.
-- **$L_j$ Feature Scaling**: Input feature inductance is provided in log scale $\\log(L_j)$, preventing vanishing gradients across nano-Henry scales.
+- **$E_j$ Target Scaling**: Because Josephson energy scales reciprocally with junction inductance ($E_j \propto 1/L_j$), linear neural networks struggle with extreme curvatures. Training in log space via $\log(E_j)$ linearizes the optimization landscape.
+- **$L_j$ Feature Scaling**: Input feature inductance is provided in log scale $\log(L_j)$, preventing vanishing gradients across nano-Henry scales.
 
 ### 2. Parameter Identity Node Features
 Scalar parameters are encoded as heterogeneous graph nodes with one-hot identity tags, enabling message passing layers to distinguish geometric dimensions from lumped circuit parameters.
 
 ### 3. Monte Carlo Dropout Uncertainty
-Dropout layers ($p=0.10$) remain enabled in both training and evaluation modes. Running $M$ stochastic forward passes provides predictive variance $\\sigma(x)$, quantifying epistemic uncertainty for active learning.
+Dropout layers ($p=0.10$) remain enabled in both training and evaluation modes. Running $M$ stochastic forward passes provides predictive variance $\sigma(x)$, quantifying epistemic uncertainty for active learning.
 
 ### 4. Validation-Based Early Stopping
 Training monitors validation loss and terminates when improvement plateaus (default patience: 200 epochs). The checkpoint with the lowest validation loss is restored before saving.
