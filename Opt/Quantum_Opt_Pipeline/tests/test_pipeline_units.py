@@ -3,10 +3,18 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import torch
 
-from src.cad_adapter import _read_terminal_capacitance
-from src.ga_optimizer import produce_next_generation
-from src.palace_cad_interface import update_qiskit_geometry
+from src.cad import _read_terminal_capacitance
+from src.genetic_algorithm import produce_next_generation
+from src.surrogate import MeshGraphNet, PhysicsNeMoSurrogate
+from src.palace import max_mpi_procs, update_qiskit_geometry
+from generate_samples import (
+    BOUNDS,
+    boundary_samples,
+    latin_hypercube_samples,
+    split_sample_indices,
+)
 
 
 def test_ga_children_stay_inside_bounds():
@@ -21,6 +29,44 @@ def test_ga_children_stay_inside_bounds():
     )
     assert np.all(children >= bounds[:, 0])
     assert np.all(children <= bounds[:, 1])
+
+
+def test_mpi_limit_uses_ninety_percent_of_cores_rounded_up():
+    assert max_mpi_procs(11) == 10
+    assert max_mpi_procs(20) == 18
+
+
+def test_latin_hypercube_samples_cover_each_stratum():
+    samples = latin_hypercube_samples(np.random.default_rng(42), BOUNDS, 10)
+    assert samples.shape == (10, 4)
+    assert np.all(samples >= BOUNDS[:, 0])
+    assert np.all(samples <= BOUNDS[:, 1])
+    for parameter_index in range(samples.shape[1]):
+        normalized = (samples[:, parameter_index] - BOUNDS[parameter_index, 0]) / (
+            BOUNDS[parameter_index, 1] - BOUNDS[parameter_index, 0]
+        )
+        assert sorted(np.floor(normalized * 10).astype(int)) == list(range(10))
+
+
+def test_ej_target_transform_round_trips():
+    targets = np.array([[12000.0, 19.3], [24000.0, 19.5]])
+    transformed = PhysicsNeMoSurrogate._transform_targets(targets)
+    restored = PhysicsNeMoSurrogate._inverse_transform_targets(transformed)
+    assert np.allclose(restored, targets)
+
+
+def test_sample_split_counts_round_up_holdouts():
+    assignments = split_sample_indices(np.random.default_rng(42), 11, 60, 20, 20)
+    assert sum(assignments == "train") == 5
+    assert sum(assignments == "validation") == 3
+    assert sum(assignments == "test") == 3
+
+
+def test_boundary_samples_cover_all_parameter_corners():
+    corners = boundary_samples(BOUNDS)
+    assert corners.shape == (16, 4)
+    assert np.all(np.min(corners, axis=0) == BOUNDS[:, 0])
+    assert np.all(np.max(corners, axis=0) == BOUNDS[:, 1])
 
 
 def test_qiskit_geometry_updates_nested_options():
@@ -49,3 +95,19 @@ def test_terminal_capacitance_reader(tmp_path: Path):
     matrix = _read_terminal_capacitance(path)
     assert matrix.shape == (2, 2)
     assert matrix[0, 0] == 1.0e-12
+
+
+def test_meshgraphnet_predicts_scalar_regression_outputs():
+    model = MeshGraphNet(in_features=4, out_features=2, hidden_dim=16, n_layers=2)
+    x = torch.randn(3, 4)
+    y = model(x)
+    assert y.shape == (3, 2)
+
+
+def test_meshgraphnet_dropout_changes_training_predictions():
+    model = MeshGraphNet(in_features=4, out_features=2, hidden_dim=16, n_layers=2)
+    model.train()
+    x = torch.randn(8, 4)
+    first = model(x)
+    second = model(x)
+    assert not torch.allclose(first, second)

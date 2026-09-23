@@ -1,9 +1,11 @@
 from pathlib import Path
+import copy
 import json
 import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 
 
@@ -19,37 +21,99 @@ else:
 _PhysicsNeMoModule = physicsnemo.Module if physicsnemo is not None else nn.Module
 
 
-class QuantumSurrogateNet(_PhysicsNeMoModule):
+class MeshGraphNet(_PhysicsNeMoModule):
     """
-    Deep surrogate network mapping geometric parameters:
-    [pad_width, pad_height, pad_gap, Lj] -> [Ej, Ec]
+    MeshGraphNet-style surrogate for compact geometry graphs.
+
+    The project's design data is parameter-vector based, so this converts each
+    scalar parameter into a node in a tiny ring graph. That preserves the current
+    CSV-based API while moving the surrogate to a mesh-graph formulation.
     """
+
     def __init__(
-        self, 
-        in_features: int = 4, 
-        out_features: int = 2, 
-        hidden_dim: int = 64, 
-        dropout_rate: float = 0.1
+        self,
+        in_features: int = 4,
+        out_features: int = 2,
+        hidden_dim: int = 64,
+        n_layers: int = 3,
+        dropout_rate: float = 0.1,
     ):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.hidden_dim = hidden_dim
+        self.n_layers = n_layers
         self.dropout_rate = dropout_rate
-        self.net = nn.Sequential(
-            nn.Linear(in_features, hidden_dim),
+        self.node_encoder = nn.Linear(2, hidden_dim)
+        self.edge_encoder = nn.Sequential(
+            nn.Linear(2 * hidden_dim, hidden_dim),
             nn.SiLU(),
-            nn.Dropout(p=dropout_rate),
+            nn.Dropout(dropout_rate),
+            nn.Linear(hidden_dim, hidden_dim),
+        )
+        self.node_update = nn.Sequential(
+            nn.Linear(2 * hidden_dim, hidden_dim),
+            nn.SiLU(),
+            nn.Dropout(dropout_rate),
+            nn.Linear(hidden_dim, hidden_dim),
+        )
+        self.readout = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
             nn.SiLU(),
-            nn.Dropout(p=dropout_rate),
-            nn.Linear(hidden_dim, hidden_dim // 2),
-            nn.SiLU(),
-            nn.Linear(hidden_dim // 2, out_features)
+            nn.Dropout(dropout_rate),
+            nn.Linear(hidden_dim, out_features),
         )
 
+    def _to_graph(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        if x.dim() == 1:
+            x = x.unsqueeze(0)
+        if x.dim() != 2:
+            raise ValueError(f"Expected graph tensor with shape (batch, features), got {tuple(x.shape)}")
+
+        batch_size, n_features = x.shape
+        if n_features == 0:
+            raise ValueError("Graph node feature dimension cannot be zero")
+
+        node_ids = torch.arange(n_features, dtype=x.dtype, device=x.device)
+        node_ids = (node_ids / max(n_features - 1, 1)).view(1, n_features, 1)
+        graph_x = torch.cat([x.unsqueeze(-1), node_ids.expand(batch_size, -1, -1)], dim=-1)
+        edge_src = []
+        edge_dst = []
+        n_nodes = n_features
+        for i in range(n_nodes):
+            j = (i + 1) % n_nodes
+            edge_src.extend([i, j])
+            edge_dst.extend([j, i])
+        edge_index = torch.tensor([edge_src, edge_dst], dtype=torch.long, device=x.device)
+        return graph_x, edge_index
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.net(x)
+        graph_x, edge_index = self._to_graph(x)
+        node_states = self.node_encoder(graph_x)
+
+        for _ in range(self.n_layers):
+            message_buffer = torch.zeros_like(node_states)
+            for edge_idx in range(edge_index.shape[1]):
+                src = int(edge_index[0, edge_idx].item())
+                dst = int(edge_index[1, edge_idx].item())
+                aggregated = torch.cat([node_states[:, src, :], node_states[:, dst, :]], dim=-1)
+                message = self.edge_encoder(aggregated)
+                message_buffer[:, dst, :] = message_buffer[:, dst, :] + message
+
+            node_update_input = torch.cat([node_states, message_buffer], dim=-1)
+            node_states = self.node_update(node_update_input)
+            node_states = F.silu(node_states)
+
+        graph_embedding = node_states.mean(dim=1)
+        return self.readout(graph_embedding)
+
+
+QuantumSurrogateNet = MeshGraphNet
+
+
+def random_seed() -> int:
+    """Return a fresh process seed from NumPy's entropy source."""
+    return int(np.random.SeedSequence().generate_state(1)[0])
 
 
 class PhysicsNeMoSurrogate:
@@ -60,6 +124,10 @@ class PhysicsNeMoSurrogate:
     3. PhysicsNeMo checkpointing and backpropagation training
       4. Monte Carlo Dropout for epistemic uncertainty estimation
     """
+    TARGET_TRANSFORM = "log_ej_v1"
+    INPUT_TRANSFORM = "log_lj_v1"
+    MODEL_VERSION = "typed_parameter_nodes_dropout_v2"
+
     def __init__(
         self, 
         n_features: int, 
@@ -144,7 +212,6 @@ class PhysicsNeMoSurrogate:
         if not self.checkpoint_path.exists():
             return
         try:
-            self.model.load(self.checkpoint_path, map_location="cpu")
             if not self.optimizer_state_path.exists():
                 return
             checkpoint = torch.load(
@@ -152,6 +219,13 @@ class PhysicsNeMoSurrogate:
                 map_location="cpu",
                 weights_only=False,
             )
+            if (
+                checkpoint.get("target_transform") != self.TARGET_TRANSFORM
+                or checkpoint.get("input_transform") != self.INPUT_TRANSFORM
+                or checkpoint.get("model_version") != self.MODEL_VERSION
+            ):
+                return
+            self.model.load(self.checkpoint_path, map_location="cpu")
             if checkpoint.get("n_features") != self.n_features:
                 return
             self.optimizer.load_state_dict(checkpoint["optimizer_state"])
@@ -175,6 +249,9 @@ class PhysicsNeMoSurrogate:
             "y_min": self.y_min,
             "y_max": self.y_max,
             "is_trained": self.is_trained,
+            "target_transform": self.TARGET_TRANSFORM,
+            "input_transform": self.INPUT_TRANSFORM,
+            "model_version": self.MODEL_VERSION,
         }, self.optimizer_state_path)
         if self.last_evaluation is not None:
             self.evaluation_path.write_text(
@@ -200,19 +277,89 @@ class PhysicsNeMoSurrogate:
         df = pd.DataFrame(record)
         df.to_csv(self.data_log_path, mode="a", header=False, index=False)
 
-    def _train_arrays(self, X: np.ndarray, Y: np.ndarray, epochs: int) -> None:
-        x_norm = (X - self.x_min) / (self.x_max - self.x_min)
-        y_norm = (Y - self.y_min) / (self.y_max - self.y_min)
+    def _train_arrays(
+        self,
+        X: np.ndarray,
+        Y: np.ndarray,
+        epochs: int,
+        validation_X: np.ndarray | None = None,
+        validation_Y: np.ndarray | None = None,
+        patience: int = 200,
+    ) -> int:
+        x_transformed = self._transform_inputs(X)
+        x_norm = (x_transformed - self.x_min) / (self.x_max - self.x_min)
+        y_transformed = self._transform_targets(Y)
+        y_norm = (y_transformed - self.y_min) / (self.y_max - self.y_min)
         x_tensor = torch.tensor(x_norm, dtype=torch.float32).to(self.device)
         y_tensor = torch.tensor(y_norm, dtype=torch.float32).to(self.device)
+        validation_tensor = None
+        validation_target = None
+        if validation_X is not None and validation_Y is not None:
+            validation_transformed = self._transform_inputs(validation_X)
+            validation_tensor = torch.tensor(
+                (validation_transformed - self.x_min) / (self.x_max - self.x_min),
+                dtype=torch.float32,
+            ).to(self.device)
+            validation_target = torch.tensor(
+                (self._transform_targets(validation_Y) - self.y_min)
+                / (self.y_max - self.y_min),
+                dtype=torch.float32,
+            ).to(self.device)
 
         self.model.train()
+        best_state = None
+        best_loss = float("inf")
+        stale_epochs = 0
+        epochs_run = 0
         for _ in range(epochs):
             self.optimizer.zero_grad()
             preds = self.model(x_tensor)
             loss = self.criterion(preds, y_tensor)
             loss.backward()
             self.optimizer.step()
+            epochs_run += 1
+            if validation_tensor is not None:
+                self.model.eval()
+                with torch.no_grad():
+                    validation_loss = float(
+                        self.criterion(
+                            self.model(validation_tensor), validation_target
+                        ).item()
+                    )
+                self.model.train()
+                if validation_loss < best_loss - 1e-7:
+                    best_loss = validation_loss
+                    best_state = copy.deepcopy(self.model.state_dict())
+                    stale_epochs = 0
+                else:
+                    stale_epochs += 1
+                    if stale_epochs >= patience:
+                        break
+        if best_state is not None:
+            self.model.load_state_dict(best_state)
+        return epochs_run
+
+    @staticmethod
+    def _transform_inputs(X: np.ndarray) -> np.ndarray:
+        transformed = np.asarray(X, dtype=np.float64).copy()
+        if np.any(transformed[:, 3] <= 0):
+            raise ValueError("lj inputs must be positive for log-space features")
+        transformed[:, 3] = np.log(transformed[:, 3])
+        return transformed
+
+    @staticmethod
+    def _transform_targets(Y: np.ndarray) -> np.ndarray:
+        transformed = np.asarray(Y, dtype=np.float64).copy()
+        if np.any(transformed[:, 0] <= 0):
+            raise ValueError("Ej targets must be positive for log-space training")
+        transformed[:, 0] = np.log(transformed[:, 0])
+        return transformed
+
+    @staticmethod
+    def _inverse_transform_targets(Y: np.ndarray) -> np.ndarray:
+        restored = np.asarray(Y, dtype=np.float64).copy()
+        restored[:, 0] = np.exp(restored[:, 0])
+        return restored
 
     def _score(
         self,
@@ -221,13 +368,16 @@ class PhysicsNeMoSurrogate:
         target_thresholds: np.ndarray,
         accuracy_tolerance_percent: float,
     ) -> dict[str, float]:
-        x_norm = (X - self.x_min) / (self.x_max - self.x_min)
+        x_transformed = self._transform_inputs(X)
+        x_norm = (x_transformed - self.x_min) / (self.x_max - self.x_min)
         self.model.eval()
         with torch.no_grad():
             predictions = self.model(
                 torch.tensor(x_norm, dtype=torch.float32).to(self.device)
             ).cpu().numpy()
-        predictions = predictions * (self.y_max - self.y_min) + self.y_min
+        predictions = self._inverse_transform_targets(
+            predictions * (self.y_max - self.y_min) + self.y_min
+        )
         errors = predictions - Y
         absolute_errors = np.abs(errors)
         relative_errors = absolute_errors / np.maximum(np.abs(Y), 1e-8)
@@ -263,9 +413,10 @@ class PhysicsNeMoSurrogate:
         self,
         epochs: int = 150,
         validation_split: float = 0.2,
-        evaluation_seed: int = 42,
+        evaluation_seed: int | None = None,
         accuracy_tolerance_percent: float = 5.0,
         target_thresholds: tuple[float, float] | None = None,
+        early_stopping_patience: int = 200,
     ) -> dict:
         """
         Normalizes dataset inputs/targets and trains the neural network.
@@ -280,6 +431,8 @@ class PhysicsNeMoSurrogate:
             raise ValueError("epochs must be at least 1")
         if accuracy_tolerance_percent <= 0:
             raise ValueError("accuracy_tolerance_percent must be greater than 0")
+        if early_stopping_patience < 1:
+            raise ValueError("early_stopping_patience must be positive")
 
         sample_count = len(self.X_train)
         validation_count = int(sample_count * validation_split)
@@ -301,12 +454,21 @@ class PhysicsNeMoSurrogate:
         )
         if thresholds.shape != (2,) or not np.all(np.isfinite(thresholds)):
             raise ValueError("target_thresholds must contain two finite values")
-        self.x_min, x_max = fit_X.min(axis=0), fit_X.max(axis=0)
-        self.y_min, y_max = fit_Y.min(axis=0), fit_Y.max(axis=0)
+        transformed_fit_X = self._transform_inputs(fit_X)
+        self.x_min, x_max = transformed_fit_X.min(axis=0), transformed_fit_X.max(axis=0)
+        transformed_fit_Y = self._transform_targets(fit_Y)
+        self.y_min, y_max = transformed_fit_Y.min(axis=0), transformed_fit_Y.max(axis=0)
         self.x_max = self.x_min + np.maximum(x_max - self.x_min, 1e-8)
         self.y_max = self.y_min + np.maximum(y_max - self.y_min, 1e-8)
 
-        self._train_arrays(fit_X, fit_Y, epochs)
+        epochs_run = self._train_arrays(
+            fit_X,
+            fit_Y,
+            epochs,
+            validation_X=self.X_train[validation_indices] if validation_count else None,
+            validation_Y=self.Y_train[validation_indices] if validation_count else None,
+            patience=early_stopping_patience,
+        )
         validation_metrics = self._score(
             self.X_train[validation_indices],
             self.Y_train[validation_indices],
@@ -315,10 +477,12 @@ class PhysicsNeMoSurrogate:
         ) if validation_count else None
 
         # The final checkpoint uses every measured sample after the unbiased score.
-        self.x_min = self.X_train.min(axis=0)
-        self.y_min = self.Y_train.min(axis=0)
+        transformed_X = self._transform_inputs(self.X_train)
+        self.x_min = transformed_X.min(axis=0)
+        transformed_Y = self._transform_targets(self.Y_train)
+        self.y_min = transformed_Y.min(axis=0)
         self.x_max = self.x_min + np.maximum(self.X_train.max(axis=0) - self.x_min, 1e-8)
-        self.y_max = self.y_min + np.maximum(self.Y_train.max(axis=0) - self.y_min, 1e-8)
+        self.y_max = self.y_min + np.maximum(transformed_Y.max(axis=0) - self.y_min, 1e-8)
         self._train_arrays(self.X_train, self.Y_train, epochs)
 
         self.is_trained = True
@@ -334,15 +498,51 @@ class PhysicsNeMoSurrogate:
             "training_samples": int(len(training_indices)),
             "validation_samples": validation_count,
             "epochs": epochs,
+            "epochs_run": epochs_run,
+            "early_stopping_patience": early_stopping_patience,
             "validation_split": validation_split,
             "evaluation_seed": evaluation_seed,
             "accuracy_tolerance_percent": accuracy_tolerance_percent,
             "target_thresholds": thresholds.tolist(),
+            "target_transform": self.TARGET_TRANSFORM,
+            "input_transform": self.INPUT_TRANSFORM,
+            "model_version": self.MODEL_VERSION,
             "train_metrics": train_metrics,
             "validation_metrics": validation_metrics,
         }
         self._save_checkpoint()
         return self.last_evaluation
+
+    def evaluate_log(
+        self,
+        data_log_path: str,
+        target_thresholds: tuple[float, float] | None = None,
+        accuracy_tolerance_percent: float = 5.0,
+    ) -> dict:
+        """Evaluate a frozen checkpoint against an independent CSV dataset."""
+        if not self.is_trained or self.x_min is None:
+            raise RuntimeError("evaluate_log requires a trained surrogate checkpoint")
+        frame = pd.read_csv(data_log_path)
+        expected_columns = [f"param_{i}" for i in range(self.n_features)] + ["Ej_MHz", "Ec_MHz"]
+        if list(frame.columns) != expected_columns:
+            raise ValueError(f"expected columns {expected_columns}, got {list(frame.columns)}")
+        values = frame.to_numpy(dtype=np.float64)
+        values = values[np.all(np.isfinite(values), axis=1)]
+        if len(values) == 0:
+            raise ValueError(f"No finite samples found in {data_log_path}")
+        thresholds = np.asarray(
+            target_thresholds
+            if target_thresholds is not None
+            else self.last_evaluation["target_thresholds"],
+            dtype=np.float64,
+        )
+        metrics = self._score(
+            values[:, :self.n_features],
+            values[:, self.n_features:],
+            thresholds,
+            accuracy_tolerance_percent,
+        )
+        return {"sample_count": len(values), "data_log": data_log_path, **metrics}
 
     def predict(self, X: np.ndarray, n_mc_samples: int = 20) -> tuple[np.ndarray, np.ndarray]:
         """
@@ -361,7 +561,8 @@ class PhysicsNeMoSurrogate:
             return default_preds, np.full(n_candidates, 999.0)
 
         # Normalize incoming candidate parameters
-        x_norm = (X - self.x_min) / (self.x_max - self.x_min)
+        x_transformed = self._transform_inputs(X)
+        x_norm = (x_transformed - self.x_min) / (self.x_max - self.x_min)
         x_tensor = torch.tensor(x_norm, dtype=torch.float32).to(self.device)
 
         # Enable dropout during inference to sample posterior distributions
@@ -371,7 +572,9 @@ class PhysicsNeMoSurrogate:
         with torch.no_grad():
             for _ in range(n_mc_samples):
                 pred_norm = self.model(x_tensor).cpu().numpy()
-                pred_real = pred_norm * (self.y_max - self.y_min) + self.y_min
+                pred_real = self._inverse_transform_targets(
+                    pred_norm * (self.y_max - self.y_min) + self.y_min
+                )
                 mc_predictions.append(pred_real)
 
         mc_predictions = np.array(mc_predictions)  # Shape: (n_mc_samples, N, 2)

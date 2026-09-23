@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -14,14 +15,25 @@ DEFAULT_PALACE_PATH = os.environ.get("PALACE_BIN", shutil.which("palace") or "pa
 H_PLANCK = 6.62607015e-34  # J*s
 E_CHARGE = 1.602176634e-19  # C
 PHI_0 = 2.067833848e-15    # Wb
-MAX_PALACE_MPI_PROCS = 15
+def max_mpi_procs(cpu_count: int | None = None) -> int:
+    """Return 90% of logical CPUs, rounded up, for Palace MPI ranks."""
+    detected_cpus = cpu_count if cpu_count is not None else (os.cpu_count() or 1)
+    if detected_cpus < 1:
+        raise ValueError("cpu_count must be positive")
+    return max(1, math.ceil(detected_cpus * 0.9))
+
+
+def default_mpi_procs() -> int:
+    """Return the default Palace rank count for this machine."""
+    return max_mpi_procs()
 
 
 def _validate_mpi_procs(n_procs: int) -> None:
-    if not isinstance(n_procs, int) or not 1 <= n_procs <= MAX_PALACE_MPI_PROCS:
+    max_allowed = max_mpi_procs()
+    if not isinstance(n_procs, int) or not 1 <= n_procs <= max_allowed:
         raise ValueError(
-            f"Palace supports between 1 and {MAX_PALACE_MPI_PROCS} MPI processes; "
-            f"got {n_procs}"
+            f"Palace MPI processes must be between 1 and {max_allowed} on this "
+            f"machine (90% of logical CPUs, rounded up); got {n_procs}"
         )
 
 

@@ -1,11 +1,2 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-PALACE_BIN="${PALACE_BIN:-palace}"
-OUTPUT_DIR="${OUTPUT_DIR:-${TMPDIR:-/tmp}/cdac-palace/smoke}"
-
-mkdir -p "${OUTPUT_DIR}/outputFiles"
-cd "${SCRIPT_DIR}"
-"${PALACE_BIN}" -np "${MPI_PROCS:-1}" -nt "${PALACE_THREADS:-1}" smoke.json \
-	| tee "${OUTPUT_DIR}/outputFiles/out.log"
+cd "/Users/akhshatkampassi/Documents/CDAC/Opt/Quantum_Opt_Pipeline/training_lhs_12gb_20260924/data/palace_runs/sample_0149"
+/Users/akhshatkampassi/Documents/CDAC/quantum_design_env/palace/build/bin/palace -np 10 -nt 1 sample_0149.json | tee "/Users/akhshatkampassi/Documents/CDAC/Opt/Quantum_Opt_Pipeline/training_lhs_12gb_20260924/data/palace_runs/sample_0149/outputFiles/out.log"

@@ -2,7 +2,7 @@
 
 import argparse
 
-from src.nemo_surrogate import PhysicsNeMoSurrogate
+from src.surrogate import PhysicsNeMoSurrogate, random_seed
 
 
 def main() -> None:
@@ -17,7 +17,8 @@ def main() -> None:
         default="training_data/checkpoints/nemo_surrogate.mdlus",
         help="PhysicsNeMo .mdlus checkpoint path",
     )
-    parser.add_argument("--epochs", type=int, default=150)
+    parser.add_argument("--epochs", type=int, default=2000)
+    parser.add_argument("--early-stopping-patience", type=int, default=200)
     parser.add_argument(
         "--validation-split",
         type=float,
@@ -27,8 +28,8 @@ def main() -> None:
     parser.add_argument(
         "--evaluation-seed",
         type=int,
-        default=42,
-        help="Seed used to select the validation samples",
+        default=None,
+        help="Optional seed for validation selection; omitted means random",
     )
     parser.add_argument(
         "--accuracy-tolerance-percent",
@@ -42,9 +43,16 @@ def main() -> None:
         "--evaluation-output",
         help="Optional JSON path for the training and validation report",
     )
+    parser.add_argument("--test-log", help="Independent CSV used only for final testing")
+    parser.add_argument("--test-output", help="Optional JSON path for the independent test report")
     args = parser.parse_args()
     if (args.ej_threshold_mhz is None) != (args.ec_threshold_mhz is None):
         parser.error("--ej-threshold-mhz and --ec-threshold-mhz must be provided together")
+
+    evaluation_seed = args.evaluation_seed
+    if evaluation_seed is None:
+        evaluation_seed = random_seed()
+    print(f"Evaluation seed: {evaluation_seed}")
 
     surrogate = PhysicsNeMoSurrogate(
         n_features=4,
@@ -58,12 +66,19 @@ def main() -> None:
     evaluation = surrogate.fit(
         epochs=args.epochs,
         validation_split=args.validation_split,
-        evaluation_seed=args.evaluation_seed,
+        evaluation_seed=evaluation_seed,
         accuracy_tolerance_percent=args.accuracy_tolerance_percent,
         target_thresholds=(args.ej_threshold_mhz, args.ec_threshold_mhz)
         if args.ej_threshold_mhz is not None and args.ec_threshold_mhz is not None
         else None,
+        early_stopping_patience=args.early_stopping_patience,
     )
+    test_evaluation = None
+    if args.test_log:
+        test_evaluation = surrogate.evaluate_log(args.test_log)
+        evaluation["independent_test"] = test_evaluation
+        surrogate.last_evaluation = evaluation
+        surrogate._save_checkpoint()
     if args.evaluation_output:
         from pathlib import Path
         import json
@@ -90,6 +105,19 @@ def main() -> None:
         )
     if args.evaluation_output:
         print(f"Evaluation report: {args.evaluation_output}")
+    if test_evaluation:
+        if args.test_output:
+            from pathlib import Path
+            import json
+
+            test_output = Path(args.test_output)
+            test_output.parent.mkdir(parents=True, exist_ok=True)
+            test_output.write_text(json.dumps(test_evaluation, indent=2), encoding="utf-8")
+        print(
+            "Independent test accuracy: "
+            f"Ej={test_evaluation['ej_accuracy_percent']:.1f}%, "
+            f"Ec={test_evaluation['ec_accuracy_percent']:.1f}%"
+        )
 
 
 if __name__ == "__main__":

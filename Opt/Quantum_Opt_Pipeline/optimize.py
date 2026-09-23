@@ -2,9 +2,9 @@
 
 import argparse
 
-from main import run_pipeline
-from src.cad_adapter import create_transmon_design
-from src.palace_cad_interface import DEFAULT_PALACE_PATH
+from pipeline import run_pipeline
+from src.cad import create_transmon_design
+from src.palace import DEFAULT_PALACE_PATH, default_mpi_procs
 
 
 def main() -> None:
@@ -16,7 +16,7 @@ def main() -> None:
     )
     parser.add_argument("--population", type=int, default=12)
     parser.add_argument("--generations", type=int, default=10)
-    parser.add_argument("--mpi-procs", type=int, default=4)
+    parser.add_argument("--mpi-procs", type=int, default=default_mpi_procs())
     parser.add_argument(
         "--model-checkpoint",
         help="Trained .mdlus checkpoint used for prediction-only optimization",

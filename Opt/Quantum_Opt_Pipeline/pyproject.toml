@@ -21,11 +21,12 @@ cad = [
 test = ["pytest>=8"]
 
 [project.scripts]
-cdac-train-surrogate = "train_nemo_surrogate:main"
-cdac-run-optimization = "run_optimization:main"
+cdac-generate-samples = "generate_samples:main"
+cdac-train-surrogate = "train_surrogate:main"
+cdac-optimize = "optimize:main"
 
 [tool.setuptools]
-py-modules = ["main", "run_optimization", "train_nemo_surrogate", "generate_training_data"]
+py-modules = ["pipeline", "optimize", "train_surrogate", "generate_samples"]
 
 [tool.setuptools.packages.find]
 include = ["src*"]

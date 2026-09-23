@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from .palace_cad_interface import (
+from .palace import (
     E_CHARGE,
     H_PLANCK,
     PHI_0,
+    max_mpi_procs,
     update_qiskit_geometry,
 )
 
@@ -87,14 +89,19 @@ class SqdmetalCapacitanceRunner:
         n_procs: int = 4,
         dielectric_material: str = "silicon",
         solver_order: int = 2,
+        retain_visualization: bool = False,
     ) -> None:
-        if not isinstance(n_procs, int) or not 1 <= n_procs <= 15:
-            raise ValueError("Palace supports between 1 and 15 MPI processes")
+        if not isinstance(n_procs, int) or not 1 <= n_procs <= max_mpi_procs():
+            raise ValueError(
+                f"Palace MPI processes must be between 1 and {max_mpi_procs()} "
+                "(90% of logical CPUs, rounded up)"
+            )
         self.output_root = Path(output_root)
         self.palace_bin = palace_bin
         self.n_procs = n_procs
         self.dielectric_material = dielectric_material
         self.solver_order = solver_order
+        self.retain_visualization = retain_visualization
 
     def evaluate(self, design, params: np.ndarray, run_name: str) -> tuple[float, float]:
         """Run Palace and return measured ``(Ej_MHz, Ec_MHz)``."""
@@ -151,6 +158,10 @@ class SqdmetalCapacitanceRunner:
         if not result_file.exists():
             raise FileNotFoundError(f"SQDMetal did not produce {result_file}")
         matrix = _read_terminal_capacitance(result_file)
+        if not self.retain_visualization:
+            shutil.rmtree(result_file.parent / "paraview", ignore_errors=True)
+            for image_path in result_file.parent.glob("*.png"):
+                image_path.unlink(missing_ok=True)
         c_sigma = float(matrix[0, 0])
         if not np.isfinite(c_sigma) or c_sigma <= 0:
             raise ValueError(f"Invalid qubit self-capacitance in {result_file}: {c_sigma}")

@@ -2,10 +2,14 @@ import json
 from pathlib import Path
 import numpy as np
 
-from src.palace_cad_interface import update_qiskit_geometry, DEFAULT_PALACE_PATH
-from src.nemo_surrogate import PhysicsNeMoSurrogate
-from src.ga_optimizer import compute_cost, produce_next_generation
-from src.cad_adapter import SqdmetalCapacitanceRunner
+from src.palace import (
+    DEFAULT_PALACE_PATH,
+    default_mpi_procs,
+    update_qiskit_geometry,
+)
+from src.surrogate import PhysicsNeMoSurrogate
+from src.genetic_algorithm import compute_cost, produce_next_generation
+from src.cad import SqdmetalCapacitanceRunner
 
 
 def run_pipeline(
@@ -13,7 +17,7 @@ def run_pipeline(
     output_root: str = ".",
     pop_size: int = 12,
     generations: int = 10,
-    palace_mpi_procs: int = 4,
+    palace_mpi_procs: int = default_mpi_procs(),
     palace_bin: str = DEFAULT_PALACE_PATH,
     palace_evaluator=None,
     model_checkpoint: str | None = None,
@@ -77,67 +81,44 @@ def run_pipeline(
         data_log_path=data_log_path or str(training_root / "active_learning_log.csv"),
         checkpoint_path=checkpoint_path,
     )
-    if not train_surrogate and not surrogate.is_trained:
-        raise RuntimeError(
-            "Prediction-only workflow requires a trained surrogate checkpoint and "
-            "at least 5 matching samples. Train it separately with "
-            "train_nemo_surrogate.py."
+    if not surrogate.is_trained:
+        print(
+            "WARNING: optimization is running in inference-only mode with a frozen "
+            "surrogate. Train the model separately with train_surrogate.py "
+            "before using this phase."
+        )
+
+    if train_surrogate:
+        print(
+            "INFO: train_surrogate is ignored during optimization because training "
+            "must remain separate from the optimization phase."
         )
 
     print("=" * 75)
-    print("STARTING ACTIVE-LEARNING QUANTUM CHIP OPTIMIZATION")
+    print("STARTING FROZEN-SURROGATE QUANTUM CHIP OPTIMIZATION")
     print(f"Palace Executable : {palace_bin}")
     print(f"Components Bound  : {param_names}")
     print("=" * 75)
 
     # -------------------------------------------------------------------------
-    # 3. Active Learning Genetic Optimization Loop
+    # 3. Inference-only Genetic Optimization Loop
     # -------------------------------------------------------------------------
     for gen in range(generations):
         costs = np.zeros(pop_size)
-        predictions, uncertainties = surrogate.predict(population)
-        fem_runs_this_gen = 0
+        predictions, _ = surrogate.predict(population)
 
         for i in range(pop_size):
-            candidate = population[i]
-            unc = uncertainties[i]
-
-            if use_palace and unc > uncertainty_threshold:
-                fem_runs_this_gen += 1
-                
-                # 1. Update CAD geometry
-                update_qiskit_geometry(design, candidate, param_names, default_unit="um")
-
-                # SQDMetal generates the mesh/config with physical tags from the design.
-                run_name = f"gen_{gen:02d}_ind_{i:02d}"
-                if callable(evaluator):
-                    ej_mhz, ec_mhz = evaluator(design, candidate, run_name)
-                else:
-                    ej_mhz, ec_mhz = evaluator.evaluate(design, candidate, run_name)
-
-                # 5. Log ground-truth sample
-                surrogate.log_and_append_sample(candidate, [ej_mhz, ec_mhz])
-            else:
-                # Surrogate inference
-                ej_mhz, ec_mhz = predictions[i]
-
+            ej_mhz, ec_mhz = predictions[i]
             costs[i] = compute_cost(ej_mhz, ec_mhz)
-
-        # Training is an explicit offline step; normal optimization only predicts.
-        if train_surrogate:
-            surrogate.fit()
 
         best_idx = np.argmin(costs)
         best_cost = costs[best_idx]
-        total_samples = len(surrogate.X_train)
-
         print(
             f"Gen {gen:02d}/{generations:02d} | "
             f"Best Cost: {best_cost:.5f} | "
-            f"Palace Runs (Gen/Total): {fem_runs_this_gen:02d}/{total_samples:03d}"
+            f"Palace Runs (Gen/Total): 00/{len(surrogate.X_train):03d}"
         )
 
-        # Produce next generation
         if gen < generations - 1:
             population = produce_next_generation(
                 population=population,
@@ -145,27 +126,30 @@ def run_pipeline(
                 bounds=bounds,
                 n_elites=2,
                 crossover_rate=0.9,
-                mutation_rate=mutation_rate
+                mutation_rate=mutation_rate,
             )
 
     # -------------------------------------------------------------------------
     # 4. Results Summary
     # -------------------------------------------------------------------------
-    # The GA chooses using Nemo predictions; Palace measures only that final choice.
     best_idx = int(np.argmin(costs))
     best_candidate = population[best_idx]
     predicted_ej_mhz, predicted_ec_mhz = predictions[best_idx]
-    update_qiskit_geometry(design, best_candidate, param_names, default_unit="um")
+
     final_run_name = f"final_selection_gen_{generations - 1:02d}"
-    if callable(evaluator):
-        best_ej_mhz, best_ec_mhz = evaluator(design, best_candidate, final_run_name)
+    if use_palace:
+        update_qiskit_geometry(design, best_candidate, param_names, default_unit="um")
+        if callable(evaluator):
+            best_ej_mhz, best_ec_mhz = evaluator(design, best_candidate, final_run_name)
+        else:
+            best_ej_mhz, best_ec_mhz = evaluator.evaluate(design, best_candidate, final_run_name)
+        final_costs = np.array([compute_cost(best_ej_mhz, best_ec_mhz)])
+        result_source = "Palace validation of frozen surrogate-selected design"
     else:
-        best_ej_mhz, best_ec_mhz = evaluator.evaluate(
-            design, best_candidate, final_run_name
-        )
-    surrogate.log_and_append_sample(best_candidate, [best_ej_mhz, best_ec_mhz])
-    final_costs = np.array([compute_cost(best_ej_mhz, best_ec_mhz)])
-    result_source = "Palace measurement of Nemo-selected design"
+        best_ej_mhz, best_ec_mhz = predicted_ej_mhz, predicted_ec_mhz
+        final_costs = np.array([compute_cost(best_ej_mhz, best_ec_mhz)])
+        result_source = "Frozen surrogate evaluation only"
+
     result = {
         "best_parameters": dict(zip(param_names, [float(value) for value in best_candidate])),
         "best_metrics_mhz": {"Ej": float(best_ej_mhz), "Ec": float(best_ec_mhz)},
@@ -182,6 +166,8 @@ def run_pipeline(
         "palace_executable": palace_bin,
         "training_log": str(training_root / "active_learning_log.csv"),
         "surrogate_checkpoint": str(training_root / "checkpoints/nemo_surrogate.mdlus"),
+        "training_phase_separate": True,
+        "optimization_is_frozen": True,
     }
     result_path = output_root / "optimization_result.json"
     result_path.write_text(json.dumps(result, indent=2) + "\n")
