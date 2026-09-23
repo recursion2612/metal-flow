@@ -31,33 +31,22 @@ Latin-hypercube samples -> Palace measurements -> split CSVs
 
 ## 2. Environment Setup
 
-The project requires Python `>=3.11,<3.13`. The recommended environment is the
-existing `quantum_design_env/.venv` beside this project.
+The project requires Python `>=3.11,<3.13`. Run the setup script from the
+pipeline directory:
 
 ```bash
-export CDAC_ROOT="$(cd ../.. && pwd)"
-export PIPELINE_ROOT="$CDAC_ROOT/Opt/Quantum_Opt_Pipeline"
-export ENV_ROOT="$CDAC_ROOT/quantum_design_env"
-python3.11 -m venv "$ENV_ROOT/.venv"
-source "$ENV_ROOT/.venv/bin/activate"
-python -m pip install --upgrade pip
+./setup_environment.sh
+source ../../quantum_design_env/.venv/bin/activate
 ```
 
-Install CPU dependencies:
+For an NVIDIA machine, use the CUDA requirements:
 
 ```bash
-python -m pip install -r "$PIPELINE_ROOT/requirements-cpu.txt"
-python -m pip install -e "$ENV_ROOT/quantum-metal[mesh]"
-python -m pip install -e "$ENV_ROOT/SQDMetal"
-python -m pip install -e "$PIPELINE_ROOT" --no-deps
+./setup_environment.sh --cuda
 ```
 
-For an NVIDIA machine, use the project CUDA requirements instead of the CPU
-requirements when selecting PyTorch:
-
-```bash
-python -m pip install -r "$PIPELINE_ROOT/requirements.txt"
-```
+The script installs Python, PyTorch, NumPy, pandas, PhysicsNeMo, local
+Qiskit Metal, local SQDMetal, and this pipeline. Palace is installed separately.
 
 Verify the important imports:
 
@@ -66,7 +55,8 @@ python -c "import physicsnemo, qiskit_metal, gmsh; print('imports ok')"
 python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
 ```
 
-The runtime also needs Palace, `mpirun`, and Gmsh:
+The runtime also needs Palace, `mpirun`, and Gmsh. The setup script checks these
+tools and reports what is missing. Configure Palace with:
 
 ```bash
 export PALACE_BIN="/absolute/path/to/palace"

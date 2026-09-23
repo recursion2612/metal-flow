@@ -11,17 +11,9 @@ Future architecture and research improvements are tracked in
 [docs/NEXT_VERSION.md](docs/NEXT_VERSION.md).
 
 ```bash
-# 1. Set up the compatible environment (Python 3.11 or 3.12)
-export CDAC_ROOT="$(cd ../.. && pwd)"
-export PIPELINE_ROOT="$CDAC_ROOT/Opt/Quantum_Opt_Pipeline"
-export ENV_ROOT="$CDAC_ROOT/quantum_design_env"
-python3.11 -m venv "$ENV_ROOT/.venv"
-source "$ENV_ROOT/.venv/bin/activate"
-python -m pip install --upgrade pip
-python -m pip install -r "$PIPELINE_ROOT/requirements-cpu.txt"
-python -m pip install -e "$ENV_ROOT/quantum-metal[mesh]"
-python -m pip install -e "$ENV_ROOT/SQDMetal"
-python -m pip install -e "$PIPELINE_ROOT" --no-deps
+# 1. Set up the compatible environment and install dependencies
+./setup_environment.sh
+source ../../quantum_design_env/.venv/bin/activate
 
 # 2. Configure Palace and run a small smoke sample
 export PALACE_BIN="/absolute/path/to/palace"
@@ -58,30 +50,12 @@ design only when `--use-palace` is supplied.
 
 ## Requirements and installation
 
-Use Python 3.11. The training-only step needs Python, PyTorch, NumPy, pandas,
-and PhysicsNeMo. The Palace data-generation and optimization steps additionally
-need MPI, Gmsh, Palace, Qiskit Metal, and SQDMetal.
-
-From the repository root, configure a virtual environment and install the
-local projects. `REPO_ROOT` is derived from the checkout, so no user-specific
-absolute path is required:
-
-```bash
-REPO_ROOT="$(pwd)"
-python3.11 -m venv "$REPO_ROOT/.venv"
-source .venv/bin/activate
-python -m pip install --upgrade pip
-
-# Select CUDA-capable PyTorch when an NVIDIA GPU is available; otherwise use CPU wheels.
-if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1; then
-    python -m pip install -r "$REPO_ROOT/Opt/Quantum_Opt_Pipeline/requirements.txt"
-else
-    python -m pip install -r "$REPO_ROOT/Opt/Quantum_Opt_Pipeline/requirements-cpu.txt"
-fi
-python -m pip install -e "$REPO_ROOT/quantum_design_env/quantum-metal[mesh]"
-python -m pip install -e "$REPO_ROOT/quantum_design_env/SQDMetal"
-python -m pip install -e "$REPO_ROOT/Opt/Quantum_Opt_Pipeline" --no-deps
-```
+Use Python 3.11 or 3.12. Run `./setup_environment.sh` from this directory to
+create or refresh `quantum_design_env/.venv` and install CPU dependencies plus
+the local CAD and pipeline projects. Use `./setup_environment.sh --cuda` when
+installing the CUDA requirements. Palace is installed separately and must be
+provided through `PALACE_BIN`; the script reports missing Palace, MPI, or Gmsh
+tools without hiding the setup result.
 
 Then enter the pipeline directory for all commands below:
 
