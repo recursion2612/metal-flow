@@ -8,26 +8,14 @@ The `train_surrogate.py` script trains a custom Graph Neural Network (GNN) surro
 
 The surrogate is implemented as a `MeshGraphNet`-style graph neural network inheriting from `physicsnemo.Module`:
 
-```
-Input Vector [pad_width, pad_height, pad_gap, log(L_j)]
-                     |
-                     v
-   [ Node & Edge Feature Encoders + Type Tags ]
-                     |
-                     v
- [ Message Passing Processor (Dropout Regularized) ]
-                     |
-                     v
-             [ Readout Network ]
-                     |
-                     v
-          [ log(E_j), E_c ] Predictions
-                     |
-                     v
-         [ Inverse Target Scaling ]
-                     |
-                     v
-            Predicted [E_j, E_c] in MHz
+```mermaid
+flowchart TD
+    A["Input Vector: [pad_width, pad_height, pad_gap, log(L_j)]"] --> B["Node & Edge Feature Encoders + One-Hot Type Tags"]
+    B --> C["Message Passing GNN Processor (Dropout Regularized)"]
+    C --> D["Readout MLP Network"]
+    D --> E["Normalized Target Predictions: [log(E_j), E_c]"]
+    E --> F["Inverse Target Scaling (Exp & Mean/Std Unscale)"]
+    F --> G["Physical Qubit Parameters: [E_j, E_c] in MHz"]
 ```
 
 ### 1. Log-Space Target & Feature Transforms

@@ -23,26 +23,17 @@ Explore the documentation organized by topic:
 
 ## Architecture Flow
 
-```
-[ Parametric Bounds ] ---> [ Latin Hypercube Sampling ]
-                                     |
-                                     v
-                           [ Qiskit Metal Geometry ]
-                                     |
-                                     v
-                             [ Gmsh 3D Meshing ]
-                                     |
-                                     v
-                        [ AWS Palace EM Simulation ]
-                                     |
-                                     v
-                       [ 70/10/20 Train/Val/Test Split ]
-                                     |
-                                     v
-                     [ PhysicsNeMo Surrogate (Log-Scale) ]
-                                     |
-                                     v
-                     [ Genetic Algorithm Optimization ]
+```mermaid
+flowchart TD
+    A["Parametric Bounds (4D Hypercube)"] --> B["Latin Hypercube Sampling (LHS)"]
+    B --> C["Qiskit Metal Layout Generation"]
+    C --> D["Gmsh 3D Mesh Generation (.msh)"]
+    D --> E["AWS Palace EM Simulation (MPI)"]
+    E --> F["Automated 70/10/20 Dataset Split"]
+    F --> G["Train PhysicsNeMo Surrogate (Log-Scale)"]
+    G --> H["Genetic Algorithm Optimization Engine"]
+    H --> I["Optimal Transmon Geometry"]
+    H -.->|"--use-palace verification"| E
 ```
 
 ---

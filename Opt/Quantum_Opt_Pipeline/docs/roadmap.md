@@ -25,21 +25,15 @@ complexity without adding useful physical information.
 
 The next meaningful architecture is a mesh-aware PhysicsNeMo model:
 
-```text
-Qiskit Metal geometry
-        |
-        v
-Gmsh mesh + materials + boundaries + terminals
-        |
-        v
-PhysicsNeMo mesh/operator model
-        |
-        +--> capacitance matrix
-        +--> electrostatic energy
-        +--> optional field quantities
-        |
-        v
-Ej/Ec surrogate outputs for the optimizer
+```mermaid
+flowchart TD
+    A["Qiskit Metal Parametric Geometry"] --> B["Gmsh Mesh + Materials + Boundaries + Terminals"]
+    B --> C["PhysicsNeMo Mesh / Operator Model"]
+    C --> D1["Maxwell Capacitance Matrix"]
+    C --> D2["Electrostatic Stored Energy"]
+    C --> D3["Electromagnetic Field Distributions"]
+    D1 --> E["Hamiltonian Targets: E_j / E_c for Optimizer"]
+    D2 --> E
 ```
 
 Possible PhysicsNeMo directions include:
