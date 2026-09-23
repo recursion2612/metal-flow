@@ -9,6 +9,8 @@ The full command reference and feature details are in
 [docs/PIPELINE_GUIDE.md](docs/PIPELINE_GUIDE.md).
 Future architecture and research improvements are tracked in
 [docs/NEXT_VERSION.md](docs/NEXT_VERSION.md).
+The setup script installs all Python and local CAD dependencies; Palace itself
+is an external runtime configured through `PALACE_BIN`.
 
 ```bash
 # 1. Set up the compatible environment and install dependencies
@@ -50,18 +52,9 @@ design only when `--use-palace` is supplied.
 
 ## Requirements and installation
 
-Use Python 3.11 or 3.12. Run `./setup_environment.sh` from this directory to
-create or refresh `quantum_design_env/.venv` and install CPU dependencies plus
-the local CAD and pipeline projects. Use `./setup_environment.sh --cuda` when
-installing the CUDA requirements. Palace is installed separately and must be
-provided through `PALACE_BIN`; the script reports missing Palace, MPI, or Gmsh
-tools without hiding the setup result.
-
-Then enter the pipeline directory for all commands below:
-
-```bash
-cd Opt/Quantum_Opt_Pipeline
-```
+For setup options, GPU selection, external Palace installation, and runtime
+details, see [docs/PIPELINE_GUIDE.md](docs/PIPELINE_GUIDE.md). The Quick Start
+above is the complete short setup path.
 
 The project requires Python `>=3.11,<3.13`. When no usable NVIDIA GPU is
 detected, `requirements-cpu.txt` selects the official PyTorch CPU wheel index.
