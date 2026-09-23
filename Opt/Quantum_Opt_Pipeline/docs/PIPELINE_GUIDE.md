@@ -1,139 +1,125 @@
 # Quantum Optimization Pipeline Guide
 
-This guide is the detailed reference for the CDAC quantum optimization pipeline.
-The repository README contains the short Quick Start.
-Future architecture work is tracked in [NEXT_VERSION.md](NEXT_VERSION.md).
+This guide provides operational details, mathematical formulations, and reference configurations for the CDAC Quantum Optimization Pipeline.
+
+---
 
 ## 1. Pipeline Overview
 
-The pipeline has four operational phases:
+The pipeline automates the simulation and optimization cycle for planar transmon qubits through four main phases:
 
-1. **Sample generation**: Qiskit Metal creates or updates the transmon geometry.
-   SQDMetal generates a mesh and runs Palace for each parameter sample.
-2. **Surrogate training**: PhysicsNeMo trains a two-output model for `Ej` and
-   `Ec` from measured Palace rows.
-3. **Independent evaluation**: A frozen checkpoint can be scored against a CSV
-   that was not used for fitting.
-4. **Optimization**: A genetic algorithm scores candidates with the frozen
-   surrogate and optionally sends the final candidate to Palace.
-
-A normal production workflow is:
-
-```text
-Latin-hypercube samples -> Palace measurements -> split CSVs
-                                      |
-                                      v
-                         train -> validate -> test
-                                      |
-                                      v
-                         frozen surrogate -> GA -> optional Palace check
 ```
+[ Latin Hypercube Sampling ] ---> [ Gmsh 3D Meshing ] ---> [ AWS Palace Solves ]
+                                                                   |
+                                                                   v
+                                                      [ Train / Val / Test CSVs ]
+                                                                   |
+                                                                   v
+                                                      [ PhysicsNeMo Surrogate ]
+                                                                   |
+                                                                   v
+                                                      [ GA Optimization Engine ]
+```
+
+1. **Sample Generation (`generate_samples.py`)**: Explores parametric qubit design space via randomized Latin Hypercube Sampling (LHS), builds conformal 3D meshes in Gmsh, and extracts Maxwell capacitance matrices using AWS Palace.
+2. **Surrogate Training (`train_surrogate.py`)**: Fits a custom graph neural network surrogate in NVIDIA PhysicsNeMo using log-transformed targets $\\log(E_j)$ and features $\\log(L_j)$.
+3. **Model Evaluation**: Employs validation-based early stopping and evaluates prediction error on an untouched 20% holdout test partition.
+4. **Genetic Optimization (`optimize.py`)**: Executes tournament selection, simulated binary crossover (SBX), and polynomial mutation to discover optimal geometries targeting desired qubit Hamiltonian frequencies.
+
+---
 
 ## 2. Environment Setup
 
-The pipeline supports both **Containerized (Docker)** and **Native Virtualenv** execution, with zero hardcoded local paths.
+The pipeline requires **Python 3.11 or 3.12**.
 
-### Option A: Containerized Setup (Recommended)
+### Option A: Containerized Setup (Docker - Recommended)
 
-Build the lean Docker container image (`quantum-opt-pipeline:latest`):
+Build the minimal Docker image:
 
 ```bash
-./setup_environment.sh --docker
+./setup_env.sh --docker
 ```
 
-Run tests or commands inside the container using the runner helper:
+Run test suite or pipeline commands inside the container:
 
 ```bash
-# Run unit tests
+# Run tests
 ./run_container.sh pytest -q
 
 # Run sample generation
-./run_container.sh python generate_samples.py --samples 10 ...
+./run_container.sh python generate_samples.py --samples 50
 
-# Interactive shell inside container
+# Interactive shell
 ./run_container.sh
 ```
 
-External Palace can be mounted via `PALACE_BIN`:
-
+To bind-mount a host Palace executable:
 ```bash
 export PALACE_BIN="/path/to/palace"
 ./run_container.sh python generate_samples.py --palace-bin "$PALACE_BIN" ...
 ```
 
-### Option B: Native Virtualenv Setup
+### Option B: Native Virtual Environment
 
-Run the setup script from the pipeline directory:
+Run the setup script:
 
 ```bash
-./setup_environment.sh
+./setup_env.sh
 source "${QUANTUM_DESIGN_ENV:-../../quantum_design_env}/.venv/bin/activate" 2>/dev/null || \
     source "./quantum_design_env/.venv/bin/activate"
 ```
 
-### Dependency Optimization (Lean Profile)
-
-To keep the footprint small and prevent disk exhaustion, useless dependencies from general quantum environments are strictly excluded:
-- **Excluded**: `PySide6`/Qt GUI (~800 MB), Jupyter/IPython stack (~1 GB), Ansys/`pyEPR` backends, Streamlit/web servers, `torchvision`, and heavy unused scientific/plotting packages.
-- **Included**: Only the core headless packages needed by this pipeline: `numpy`, `pandas`, `torch`, `nvidia-physicsnemo`, `quantum-metal[mesh]`, `SQDMetal` (minimal runtime: `mph`, `pyvista`), `gmsh`, and `pytest`.
-
-For an NVIDIA machine, use the CUDA requirements:
-
+For NVIDIA GPU acceleration:
 ```bash
-./setup_environment.sh --cuda
+./setup_env.sh --cuda
 ```
 
-The script installs Python, PyTorch, NumPy, pandas, PhysicsNeMo, local
-Qiskit Metal, local SQDMetal, and this pipeline. Palace is installed separately.
+### Lean Dependency Profile
+To ensure fast installations and prevent disk exhaustion, heavy interactive libraries (PySide6, Jupyter, Ansys backends, Streamlit, torchvision) are omitted:
+- **Core Runtime**: `numpy`, `pandas`, `torch`, `nvidia-physicsnemo`, `quantum-metal[mesh]`, `SQDMetal` (minimal runtime: `mph`, `pyvista`), `gmsh`, and `pytest`.
+- **System Tools**: `mpirun` (OpenMPI), `gmsh`, and `palace`.
 
-Verify the important imports:
-
+Verify runtime imports:
 ```bash
-python -c "import physicsnemo, qiskit_metal, gmsh; print('imports ok')"
-python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
+python -c "import physicsnemo, qiskit_metal, SQDMetal, gmsh; print('Imports verified successfully')"
+python -c "import torch; print(f'PyTorch {torch.__version__} (CUDA: {torch.cuda.is_available()})')"
 ```
 
-The runtime also needs Palace, `mpirun`, and Gmsh. The setup script checks these
-tools and reports what is missing. Configure Palace with:
+---
 
+## 3. Resource Management & MPI Allocation
+
+AWS Palace solves large finite-element linear systems in parallel using MPI. To preserve system stability, the pipeline reserves at least 10% of logical CPU cores for host OS background tasks:
+
+$$\\text{MPI Ranks} = \\max\\left(1, \\left\\lceil 0.90 \\times \\text{logical\\_cpu\\_count} \\right\\rceil\\right)$$
+
+On an 11-core system, Palace automatically defaults to 10 ranks.
+
+Check machine rank limit:
 ```bash
-export PALACE_BIN="/path/to/palace"
-"$PALACE_BIN" --help >/dev/null
-mpirun --version
-gmsh --version
+python -c "from src.palace import max_mpi_procs; print(f'Safe MPI rank limit: {max_mpi_procs()}')"
 ```
 
-## 3. MPI Resource Policy
+MPI parallelizes each individual finite-element solve. Parameter samples are evaluated sequentially.
 
-The default Palace rank count is calculated as:
+---
 
-```text
-ceil(0.90 * logical_cpu_count)
-```
+## 4. Sample Generation (`generate_samples.py`)
 
-There is no fixed 15-rank cap. On an 11-logical-core machine the default is 10
-MPI ranks. The policy is intended to leave approximately 10% of logical CPU
-capacity for normal operating-system tasks.
+### Parameter Bounds
 
-Check the value:
+| Parameter | Key | Range | Unit |
+| :--- | :--- | :--- | :--- |
+| Transmon Pad Width | `Q1.pad_width` | 300 to 600 | $\\mu\\text{m}$ |
+| Transmon Pad Height | `Q1.pad_height` | 20 to 80 | $\\mu\\text{m}$ |
+| Ground Pocket Gap | `Q1.pad_gap` | 10 to 40 | $\\mu\\text{m}$ |
+| Josephson Inductance | `lj` | 6.0 to 14.0 | $\\text{nH}$ |
 
-```bash
-python -c "from src.palace import max_mpi_procs; print(max_mpi_procs())"
-```
-
-Override it explicitly only when needed:
-
-```bash
-python generate_samples.py --mpi-procs 10 ...
-```
-
-The value must be a positive integer no greater than the machine-aware limit.
-MPI parallelizes each Palace solve; samples themselves are processed
-sequentially by the generator.
-
-## 4. Generating Samples
-
-Basic command:
+### Sampling & Partitioning
+- **Latin Hypercube Sampling**: Stratifies parameter intervals equally for optimal space-filling coverage.
+- **Randomized Seeds**: Generates fresh entropy per invocation by default; use `--seed <int>` for deterministic reproduction.
+- **Boundary Sampling**: Pass `--include-boundary-points` to populate the first 16 samples with every combination of minimum/maximum parameter bounds.
+- **Ceiling Holdout Splitting**: Splits data into 70% train, 10% validation, and 20% test (holdout counts rounded up using `ceil`).
 
 ```bash
 python generate_samples.py \
@@ -142,123 +128,25 @@ python generate_samples.py \
     --palace-bin "$PALACE_BIN"
 ```
 
-Each sample is a four-parameter vector:
+### Generated Files
+- `training_data/active_learning_log.csv`: Consolidated dataset containing `param_0`..`param_3`, `Ej_MHz`, and `Ec_MHz`.
+- `training_data/train_samples.csv`: 70% partition for surrogate model fitting.
+- `training_data/validation_samples.csv`: 10% partition for model selection.
+- `training_data/test_samples.csv`: 20% holdout partition for independent evaluation.
+- `training_data/sample_splits.csv`: Combined manifest tracking assigned split per row.
+- `run_metadata.json`: Audit log containing timestamps, git commit, seeds, and runtime versions.
 
-| Parameter       |         Range | Unit |
-| --------------- | ------------: | ---- |
-| `Q1.pad_width`  |    300 to 600 | um   |
-| `Q1.pad_height` |      20 to 80 | um   |
-| `Q1.pad_gap`    |      10 to 40 | um   |
-| `lj`            | 6e-9 to 14e-9 | H    |
+---
 
-### Sampling behavior
+## 5. Surrogate Modeling (`train_surrogate.py`)
 
-Samples use randomized Latin-hypercube sampling. Each parameter receives one
-sample in every equal-width stratum, which gives better marginal coverage than
-independent uniform random draws.
-
-The default seed is generated from NumPy entropy at runtime. Therefore two runs
-without `--seed` produce different sample plans. Use an explicit seed only when
-reproducing a run:
-
-```bash
-python generate_samples.py --samples 150 --seed 123456 ...
-```
-
-Boundary coverage is optional. It replaces the first 16 samples with all low/high
-corners of the four-dimensional design box:
-
-```bash
-python generate_samples.py \
-    --samples 150 \
-    --include-boundary-points \
-    ...
-```
-
-At least 16 samples are required when boundary coverage is enabled.
-
-### Train, validation, and test splits
-
-The default percentages are:
-
-```text
-training:   70%
-validation: 10%
-test:       20%
-```
-
-Validation and test counts are rounded up with `ceil`. The training count is the
-remaining count, so all samples are assigned exactly once. For 150 samples this
-produces 105 training, 15 validation, and 30 test samples.
-
-Override the split:
-
-```bash
-python generate_training_data.py \
-    --training-percent 70 \
-    --validation-percent 10 \
-    --test-percent 20 \
-    ...
-```
-
-The percentages must sum to 100. The assignment is shuffled with the same
-runtime random generator used for the sample plan.
-
-### Generated files
-
-The generator writes:
-
-```text
-training_run/training_data/active_learning_log.csv
-training_run/training_data/sample_splits.csv
-training_run/training_data/train_samples.csv
-training_run/training_data/validation_samples.csv
-training_run/training_data/test_samples.csv
-training_run/run_metadata.json
-training_run/data/palace_runs/sample_XXXX/
-```
-
-`active_learning_log.csv` is the combined measured dataset. Each row contains
-`param_0` through `param_3`, `Ej_MHz`, and `Ec_MHz`.
-
-`sample_splits.csv` adds a `split` column to the measured rows. The three
-split-specific CSVs remove that column and are ready for model tooling.
-
-`run_metadata.json` records the UTC timestamp, Python executable and version,
-sampling seed, split percentages, MPI count, Palace path, visualization policy,
-boundary coverage setting, and git revision when available.
-
-Each Palace sample directory normally contains a mesh, Palace configuration,
-solver logs, and `outputFiles/terminal-C.csv`. Paraview fields and diagnostic
-PNG files are removed after the capacitance result is read, unless
-`--keep-visualization` is passed.
-
-Keep visualization output only when needed for inspection:
-
-```bash
-python generate_training_data.py --keep-visualization ...
-```
-
-The visualization files are large. A previous run used roughly 70-80 MB per
-sample with Paraview output retained.
-
-## 5. Training the Surrogate
-
-The model predicts both `Ej` and `Ec`; `Ej` is not calculated analytically in
-the GA.
-
-The training implementation uses:
-
-- Log-space `Ej` targets (`log_ej_v1`)
-- Log-space `lj` input feature (`log_lj_v1`)
-- Typed parameter-node features so the network distinguishes geometry from `lj`
-- Two-output regression for `[Ej, Ec]`
-- Dropout layers in edge, node, and readout blocks
-- Monte Carlo dropout at prediction time for uncertainty estimates
-- AdamW optimization with weight decay
-- Validation-loss early stopping and best-weight restoration
-
-Train from a dedicated training CSV and evaluate an untouched test CSV:
+### Architecture & Physics Transforms
+The surrogate model learns electromagnetic relationships from scalar geometries:
+- **Log-Space Targets**: Fits $\\log(E_j)$ to linearize the inverse relationship $E_j \\propto 1/L_j$.
+- **Log-Space Inputs**: Feeds $\\log(L_j)$ into the graph network to improve gradient stability.
+- **Node Type Encodings**: Parameter identity features allow the network to distinguish geometric coordinates from circuit inductance.
+- **Monte Carlo Dropout**: Regularizes training and provides predictive uncertainty during genetic algorithm runs.
+- **Early Stopping**: Restores model weights from the epoch with minimal validation loss.
 
 ```bash
 python train_surrogate.py \
@@ -267,58 +155,28 @@ python train_surrogate.py \
     --checkpoint training_run/training_data/checkpoints/nemo_surrogate.mdlus \
     --epochs 2000 \
     --early-stopping-patience 200 \
-    --evaluation-output training_run/training_data/checkpoints/training_evaluation.json \
-    --test-output training_run/training_data/checkpoints/test_evaluation.json
+    --evaluation-output training_run/training_data/checkpoints/training_evaluation.json
 ```
 
-Important: `--test-log` is evaluated only after fitting and must not be included
-in `--data-log`. The current CLI performs an internal validation split from the
-training CSV. The generated `validation_samples.csv` is available as a separate
-artifact for external evaluation or future split-aware training workflows.
+### Outputs
+- `nemo_surrogate.mdlus`: PhysicsNeMo model architecture and weights.
+- `nemo_surrogate.state.pt`: Normalization statistics, optimizer states, and version tags.
+- `training_evaluation.json`: Comprehensive report containing MSE, RMSE, MAE, relative accuracy within 5%, precision, recall, and F1 scores.
 
-Optional controls:
+---
 
-```bash
---validation-split 0.1
---accuracy-tolerance-percent 5
---evaluation-seed 123456
---ej-threshold-mhz 22000 --ec-threshold-mhz 400
-```
+## 6. Genetic Optimization (`optimize.py`)
 
-Omit `--evaluation-seed` for a fresh validation split each run. Use it only for
-reproducibility.
+Searches the continuous design space to hit target Hamiltonian energies ($E_j^*, E_c^*$).
 
-### Training outputs
-
-The checkpoint directory contains:
-
-```text
-nemo_surrogate.mdlus
-nemo_surrogate.state.pt
-nemo_surrogate.evaluation.json
-training_evaluation.json       # when --evaluation-output is supplied
-test_evaluation.json            # when --test-output is supplied
-```
-
-The state file contains normalization ranges, optimizer state, transform
-versions, and model version. Incompatible older checkpoints are ignored rather
-than loaded silently.
-
-### Metrics
-
-The report includes:
-
-- MSE, RMSE, and MAE
-- Separate `Ej` and `Ec` MAE in MHz
-- Percentage within the configured relative-error tolerance
-- Precision, recall, and F1 using optional target thresholds
-- Training and validation sample counts
-- Actual epochs run before early stopping
-- Independent test metrics when `--test-log` is provided
-
-## 6. Optimization
-
-Run prediction-only optimization with a trained checkpoint:
+### Optimization Process
+1. Initializes a population of continuous parameter vectors within fabrication limits.
+2. Evaluates candidates using the frozen PhysicsNeMo surrogate.
+3. Ranks candidates via quadratic cost function:
+   $$\\text{Cost} = \\left(\\frac{E_j - E_j^*}{E_j^*}\\right)^2 + \\left(\\frac{E_c - E_c^*}{E_c^*}\\right)^2$$
+4. Applies tournament selection, Simulated Binary Crossover (SBX), and polynomial mutation ($p_m = 0.25$).
+5. Automatically clones top elites into the next generation.
+6. Writes winning geometry and parameters to `optimization_result.json`.
 
 ```bash
 python optimize.py \
@@ -330,103 +188,42 @@ python optimize.py \
     --palace-bin "$PALACE_BIN"
 ```
 
-What happens:
+Add `--use-palace` to validate the final winning design via a live Palace simulation solve.
 
-1. Qiskit Metal creates the starting transmon design.
-2. The GA creates a random population inside the four bounds.
-3. The frozen surrogate predicts `Ej` and `Ec` for each candidate.
-4. The cost function ranks the candidates.
-5. Tournament selection, SBX crossover, and polynomial mutation create the next
-   generation.
-6. The best candidate is written to `optimization_result.json`.
-7. With default options, the result is surrogate-only and no Palace evaluation
-   is run during optimization.
+---
 
-Request final Palace validation explicitly:
+## 7. Verification & Quality Checks
 
-```bash
-python optimize.py \
-    --output-root optimization_run \
-    --model-checkpoint training_run/training_data/checkpoints/nemo_surrogate.mdlus \
-    --model-data-log training_run/training_data/train_samples.csv \
-    --use-palace \
-    --palace-bin "$PALACE_BIN"
-```
-
-`--train-surrogate` is retained for compatibility but training remains a
-separate offline phase. The optimizer writes a manifest containing parameters,
-predicted metrics, optional measured metrics, cost, population size, generation
-count, and model paths.
-
-## 7. Testing and Quality Checks
-
-Run the complete tests:
-
+Run the complete test suite:
 ```bash
 python -m pytest -q
 ```
 
-Run syntax and whitespace checks:
-
+Validate syntax, type hygiene, and formatting:
 ```bash
 python -m compileall -q pipeline.py generate_samples.py optimize.py train_surrogate.py src tests
 git diff --check
 ```
 
-The tests cover bounds, MPI policy, Latin-hypercube strata, split rounding,
-boundary corners, target transforms, dropout behavior, geometry updates,
-capacitance parsing, and the workflow smoke path.
+---
 
-## 8. Disk and Process Management
+## 8. Disk & Process Management
 
-Before a large run:
+- Intermediate 3D Paraview field meshes (`.vtu`) are deleted automatically after capacitance extraction, preserving disk space. Pass `--keep-visualization` only when visual field debugging is required.
+- Do not run concurrent generators targeting the same output directory.
+- Verify available storage before launching large simulation batches:
+  ```bash
+  df -h .
+  ```
 
-```bash
-df -h .
-du -sh training_run 2>/dev/null || true
-```
-
-Use the default visualization cleanup to keep storage manageable. Do not start a
-second generator against the same output root. If a run is interrupted, inspect
-the CSV row count and sample directories before resuming; the generator does not
-currently deduplicate an already completed sample automatically.
-
-The expensive step is Palace generation. Training on a few hundred CSV rows is
-usually much faster than producing those rows. Preserve the CSV and checkpoint
-if the mesh and Paraview artifacts are no longer needed.
+---
 
 ## 9. Troubleshooting
 
-### Missing `qiskit_metal`
-
-Use the Python executable from `quantum_design_env/.venv` and install the local
-`quantum-metal[mesh]` project. The pipeline requires Python 3.11 or 3.12.
-
-### Missing Palace, MPI, or Gmsh
-
-Check `PALACE_BIN`, `mpirun --version`, and `gmsh --version`. Pass an absolute
-Palace path with `--palace-bin` to avoid PATH ambiguity.
-
-### MPI rank rejection
-
-The requested rank count is above 90% of detected logical CPUs rounded up. Lower
-`--mpi-procs`, or omit it and use the calculated default.
-
-### Missing `terminal-C.csv`
-
-Inspect the sample's `outputFiles/out.log`. A missing capacitance result stops the
-run because the sample cannot be trusted.
-
-### Repeated Paraview plotting warning
-
-`Error in plotting: 'Data array (V) not present in this dataset.'` is a
-visualization warning from the Palace postprocessor. The capacitance result can
-still be valid when `terminal-C.csv` exists and the solver log shows convergence.
-Use the default visualization cleanup if those plots are not needed.
-
-### Low validation or test accuracy
-
-Check the split files, sample ranges, target distributions, and independent test
-metrics. Increase Palace samples with Latin-hypercube or boundary coverage
-before increasing epochs indefinitely. Use the saved run metadata to reproduce
-the environment and sample plan.
+| Issue | Cause | Resolution |
+| :--- | :--- | :--- |
+| `Missing qiskit_metal` | Incorrect Python environment | Activate the Python 3.11 virtual environment (`source quantum_design_env/.venv/bin/activate`). |
+| `mpirun: command not found` | OpenMPI not installed | Install OpenMPI (`openmpi-bin` on Linux, `brew install open-mpi` on macOS) or use Docker. |
+| `MPI rank rejection error` | `--mpi-procs` exceeds 90% of cores | Omit `--mpi-procs` to use automatic machine default. |
+| `terminal-C.csv missing` | Palace solve failure or geometry self-intersection | Inspect `out.log` in `data/palace_runs/sample_XXXX/outputFiles/`. |
+| `Data array (V) not present` | Non-fatal Paraview field warning from Palace | Safe to ignore; capacitance value is extracted from `terminal-C.csv`. |
