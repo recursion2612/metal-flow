@@ -96,7 +96,7 @@ Choose between containerized execution (Docker) or a local virtual environment:
 source "${QUANTUM_DESIGN_ENV:-../../quantum_design_env}/.venv/bin/activate" 2>/dev/null || \
     source "./quantum_design_env/.venv/bin/activate"
 ```
-- **What to expect**: Prepares a lean environment with `torch`, `physicsnemo`, `quantum-metal`, `SQDMetal`, and `gmsh`. Unnecessary bloatware (PySide6/Qt, Jupyter, Ansys) is excluded.
+- **What to expect**: Prepares a lean environment with `torch`, `physicsnemo`, `quantum-metal`, `SQDMetal`, and `gmsh` in 1–2 minutes. Unnecessary bloatware (PySide6/Qt, Jupyter, Ansys) is excluded.
 
 ---
 
@@ -110,7 +110,7 @@ python generate_samples.py \
     --samples 150 \
     --palace-bin "$PALACE_BIN"
 ```
-- **What to expect**: Explores the 4D parameter box via Latin Hypercube Sampling. Reserves 10% of CPU cores for host OS stability and runs Palace across the remaining cores via OpenMPI.
+- **What to expect**: Explores the 4D parameter box via Latin Hypercube Sampling. Reserves 10% of CPU cores for host OS stability and runs Palace across the remaining cores via OpenMPI (~10–15s per sample).
 - **Outputs**: Produces `active_learning_log.csv` and auto-splits data into 70% `train_samples.csv`, 10% `validation_samples.csv`, and 20% `test_samples.csv`. Transient 3D field files (`.vtu`) are deleted automatically to save disk space.
 
 ---
@@ -126,7 +126,7 @@ python train_surrogate.py \
     --early-stopping-patience 200 \
     --evaluation-output training_run/training_data/checkpoints/training_evaluation.json
 ```
-- **What to expect**: Fits the PhysicsNeMo GNN on $\log(E_j)$ and $\log(L_j)$. Stops automatically when validation loss plateaus and restores the best weights.
+- **What to expect**: Fits the PhysicsNeMo GNN on $\log(E_j)$ and $\log(L_j)$ in ~15–45s. Stops automatically when validation loss plateaus and restores the best weights.
 - **Outputs**: Writes `nemo_surrogate.mdlus`, `nemo_surrogate.state.pt`, and `training_evaluation.json` (reporting relative accuracy within 5%, MAE, and independent test score).
 
 ---
@@ -142,8 +142,8 @@ python optimize.py \
     --generations 20 \
     --palace-bin "$PALACE_BIN"
 ```
-- **What to expect**: Evaluates 100 candidate designs per generation with real-time surrogate scoring. In each generation, the best ranking candidates are simulated using AWS Palace and carried forward as elites into the next generation. Variable generation loop automatically terminates as soon as the best candidate reaches within 5% of target parameters (or up to 20 max generations), simultaneously deleting old generation data to keep disk usage zero.
-- **Outputs**: Writes winning parameters (`pad_width`, `pad_height`, `pad_gap`, and $L_j$), predicted frequencies, and verified Palace simulation metrics to `optimization_run/optimization_result.json`.
+- **What to expect**: Evaluates 100 candidate designs per generation in ~2–5 seconds with real-time surrogate scoring. Variable generation loop automatically terminates as soon as the best candidate reaches within 5% of target parameters (or up to 20 max generations), simultaneously deleting old generation data to keep disk usage zero.
+- **Outputs**: Writes winning parameters (`pad_width`, `pad_height`, `pad_gap`, and $L_j$) and predicted frequencies to `optimization_run/optimization_result.json`. Add `--use-palace` to run a live Palace simulation on the final winner.
 
 ---
 
@@ -152,7 +152,7 @@ python optimize.py \
 ```bash
 python -m pytest -q
 ```
-- **What to expect**: Runs the automated test suite, verifying genetic operators, variable stopping, math transforms, MPI bounds, and script syntax.
+- **What to expect**: Runs 17 unit tests in ~3 seconds, verifying genetic operators, variable stopping, math transforms, MPI bounds, and script syntax.
 
 ---
 
