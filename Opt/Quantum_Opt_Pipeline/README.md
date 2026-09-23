@@ -134,8 +134,16 @@ python optimize.py \
 
 ## Documentation
 
-- **[Pipeline Guide](docs/PIPELINE_GUIDE.md)**: Detailed configuration, parameter ranges, and troubleshooting.
-- **[Next Version Roadmap](docs/NEXT_VERSION.md)**: Mesh-aware physics-informed loss architecture plans.
+Detailed documentation is organized by topic in the [`docs/`](docs/) directory:
+
+- **[Quick Start Guide](docs/quickstart.md)**: Step-by-step walkthrough detailing commands and expected outputs at each phase.
+- **[Environment Setup](docs/setup.md)**: Containerized Docker setup, virtual environment, and lean dependency profile.
+- **[MPI Resource Policy](docs/mpi_policy.md)**: Core allocation rules, 10% OS capacity reservation, and scaling.
+- **[Sample Generation](docs/sampling.md)**: Design bounds, Latin Hypercube Sampling, boundary box coverage, and 70/10/20 splitting.
+- **[Surrogate Modeling](docs/surrogate.md)**: PhysicsNeMo GNN architecture, log-scale physics transforms, dropout uncertainty, and training.
+- **[Genetic Optimization](docs/optimization.md)**: Real-valued GA engine, objective function, tournament selection, and operators.
+- **[Troubleshooting Guide](docs/troubleshooting.md)**: Common failure modes, root causes, and resolutions.
+- **[Next Version Roadmap](docs/roadmap.md)**: Mesh-aware graph networks, physics-informed losses, and future plans.
 
 ---
 
