@@ -1,3 +1,5 @@
+import os
+import subprocess
 import json
 from pathlib import Path
 
@@ -111,3 +113,43 @@ def test_meshgraphnet_dropout_changes_training_predictions():
     first = model(x)
     second = model(x)
     assert not torch.allclose(first, second)
+
+def test_setup_scripts_exist_and_pass_syntax():
+    root = Path(__file__).resolve().parent.parent
+    for script_name in ("setup_environment.sh", "setup_env.sh", "run_container.sh"):
+        script = root / script_name
+        assert script.exists(), f"{script_name} missing"
+        assert os.access(script, os.X_OK), f"{script_name} is not executable"
+        ret = subprocess.run(["sh", "-n", str(script)], capture_output=True, text=True)
+        assert ret.returncode == 0, f"{script_name} syntax error: {ret.stderr}"
+
+
+def test_setup_script_help():
+    root = Path(__file__).resolve().parent.parent
+    script = root / "setup_environment.sh"
+    ret = subprocess.run([str(script), "--help"], capture_output=True, text=True)
+    assert ret.returncode == 0
+    assert "--docker" in ret.stdout
+    assert "--cuda" in ret.stdout
+
+
+def test_dockerfile_and_dockerignore_validity():
+    root = Path(__file__).resolve().parent.parent
+    dockerfile = root / "Dockerfile"
+    dockerignore = root / ".dockerignore"
+    assert dockerfile.exists() and dockerfile.stat().st_size > 0
+    assert dockerignore.exists() and dockerignore.stat().st_size > 0
+
+    content = dockerfile.read_text()
+    assert "/Users/" not in content
+    assert "WORKDIR /workspace" in content
+    assert "QUANTUM_DESIGN_ENV" in content
+
+
+def test_zero_local_paths_in_project():
+    root = Path(__file__).resolve().parent.parent
+    for ext in ("*.py", "*.sh", "*.md", "*.toml", "Dockerfile"):
+        for p in root.glob(ext):
+            t = p.read_text(errors="replace")
+            assert "/Users/" not in t, f"Found /Users/ in {p.name}"
+            assert "/home/" not in t or "PATH" in t or "WORKDIR" in t or "username" in t, f"Found local /home/ in {p.name}"

@@ -1,0 +1,16 @@
+.git
+__pycache__
+*.py[cod]
+.pytest_cache
+.venv
+data/
+training_data/
+run_*/
+training_*/
+debug_run.*/
+build/
+*.egg-info/
+temp.sh
+*.log
+.DS_Store
+optimization_result.json

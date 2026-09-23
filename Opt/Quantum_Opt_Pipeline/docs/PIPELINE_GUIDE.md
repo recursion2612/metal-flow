@@ -31,13 +31,51 @@ Latin-hypercube samples -> Palace measurements -> split CSVs
 
 ## 2. Environment Setup
 
-The project requires Python `>=3.11,<3.13`. Run the setup script from the
-pipeline directory:
+The pipeline supports both **Containerized (Docker)** and **Native Virtualenv** execution, with zero hardcoded local paths.
+
+### Option A: Containerized Setup (Recommended)
+
+Build the lean Docker container image (`quantum-opt-pipeline:latest`):
+
+```bash
+./setup_environment.sh --docker
+```
+
+Run tests or commands inside the container using the runner helper:
+
+```bash
+# Run unit tests
+./run_container.sh pytest -q
+
+# Run sample generation
+./run_container.sh python generate_samples.py --samples 10 ...
+
+# Interactive shell inside container
+./run_container.sh
+```
+
+External Palace can be mounted via `PALACE_BIN`:
+
+```bash
+export PALACE_BIN="/path/to/palace"
+./run_container.sh python generate_samples.py --palace-bin "$PALACE_BIN" ...
+```
+
+### Option B: Native Virtualenv Setup
+
+Run the setup script from the pipeline directory:
 
 ```bash
 ./setup_environment.sh
-source ../../quantum_design_env/.venv/bin/activate
+source "${QUANTUM_DESIGN_ENV:-../../quantum_design_env}/.venv/bin/activate" 2>/dev/null || \
+    source "./quantum_design_env/.venv/bin/activate"
 ```
+
+### Dependency Optimization (Lean Profile)
+
+To keep the footprint small and prevent disk exhaustion, useless dependencies from general quantum environments are strictly excluded:
+- **Excluded**: `PySide6`/Qt GUI (~800 MB), Jupyter/IPython stack (~1 GB), Ansys/`pyEPR` backends, Streamlit/web servers, `torchvision`, and heavy unused scientific/plotting packages.
+- **Included**: Only the core headless packages needed by this pipeline: `numpy`, `pandas`, `torch`, `nvidia-physicsnemo`, `quantum-metal[mesh]`, `SQDMetal` (minimal runtime: `mph`, `pyvista`), `gmsh`, and `pytest`.
 
 For an NVIDIA machine, use the CUDA requirements:
 
@@ -59,7 +97,7 @@ The runtime also needs Palace, `mpirun`, and Gmsh. The setup script checks these
 tools and reports what is missing. Configure Palace with:
 
 ```bash
-export PALACE_BIN="/absolute/path/to/palace"
+export PALACE_BIN="/path/to/palace"
 "$PALACE_BIN" --help >/dev/null
 mpirun --version
 gmsh --version

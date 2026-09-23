@@ -13,12 +13,20 @@ The setup script installs all Python and local CAD dependencies; Palace itself
 is an external runtime configured through `PALACE_BIN`.
 
 ```bash
-# 1. Set up the compatible environment and install dependencies
+# 1. Environment Setup (choose Containerized or Native Virtualenv)
+
+# Option A: Containerized Setup (Docker - recommended for isolation and portability)
+./setup_environment.sh --docker
+./run_container.sh pytest -q
+
+# Option B: Native Virtualenv Setup (installs lean dependencies without GUI/notebook bloat)
 ./setup_environment.sh
-source ../../quantum_design_env/.venv/bin/activate
+# Activate the created virtual environment (located in quantum_design_env/.venv)
+source "${QUANTUM_DESIGN_ENV:-../../quantum_design_env}/.venv/bin/activate" 2>/dev/null || \
+    source "./quantum_design_env/.venv/bin/activate"
 
 # 2. Configure Palace and run a small smoke sample
-export PALACE_BIN="/absolute/path/to/palace"
+export PALACE_BIN="/path/to/palace"
 python generate_samples.py \
     --output-root training_run \
     --samples 12 \
