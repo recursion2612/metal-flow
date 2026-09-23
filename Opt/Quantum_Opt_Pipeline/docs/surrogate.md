@@ -10,8 +10,8 @@ The surrogate is implemented as a `MeshGraphNet`-style graph neural network inhe
 
 ```mermaid
 flowchart LR
-    A["Qubit Parameters<br/>(Geometry & Inductance)"] --> B["PhysicsNeMo Neural Network<br/>(Graph Message Passing)"]
-    B --> C["Predicted Energy Levels<br/>(Ej, Ec in MHz)"]
+    A["Qubit Parameters (Geometry & Inductance)"] --> B["PhysicsNeMo Neural Network (Graph Message Passing)"]
+    B --> C["Predicted Energy Levels (Ej, Ec in MHz)"]
 ```
 
 ### 1. Log-Space Target & Feature Transforms

@@ -5,7 +5,7 @@
 [![Solver](https://img.shields.io/badge/Solver-AWS%20Palace-FF9900.svg)](https://awslabs.github.io/palace/)
 [![Surrogate](https://img.shields.io/badge/Surrogate-NVIDIA%20PhysicsNeMo-76B900.svg)](https://github.com/NVIDIA/physicsnemo)
 [![CAD](https://img.shields.io/badge/CAD-Qiskit%20Metal-6929C4.svg)](https://qiskit-community.github.io/qiskit-metal/)
-[![Tests](https://img.shields.io/badge/Tests-17%20Passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-18%20Passing-brightgreen.svg)](tests/)
 
 A hybrid CAD and machine learning framework for superconducting transmon qubit design optimization. The pipeline integrates **Qiskit Metal** parameterization, **SQDMetal** + **AWS Palace** finite-element capacitance simulation, an **NVIDIA PhysicsNeMo** surrogate neural network, and a **real-valued Genetic Algorithm (GA)**.
 
@@ -32,17 +32,12 @@ The optimizer navigates a 4-dimensional geometric and circuit parameter space to
 ## Architecture Flow
 
 ```mermaid
-flowchart TD
-    A["Parameter Bounds (4D Hypercube)"] --> B["Latin Hypercube Sampling (LHS)"]
-    B --> C["Qiskit Metal Layout Generation"]
-    C --> D["Gmsh 3D Mesh Generation (.msh)"]
-    D --> E["AWS Palace Finite-Element Solve (MPI)"]
-    E --> F["Extract Maxwell Capacitance Matrix"]
-    F --> G["Automated 70/10/20 Dataset Split"]
-    G --> H["Train PhysicsNeMo GNN Surrogate (Log-Scale)"]
-    H --> I["Real-Valued Genetic Algorithm (GA)"]
-    I --> J["Optimal Transmon Geometry"]
-    I -.->|"--use-palace validation"| E
+flowchart LR
+    A["Design Sampling"] --> B["EM Simulation"]
+    B --> C["AI Surrogate Model"]
+    C --> D["Genetic Optimization"]
+    D --> E["Optimal Qubit Design"]
+    D -.->|"Palace Verification"| B
 ```
 
 ---
@@ -96,7 +91,7 @@ Choose between containerized execution (Docker) or a local virtual environment:
 source "${QUANTUM_DESIGN_ENV:-../../quantum_design_env}/.venv/bin/activate" 2>/dev/null || \
     source "./quantum_design_env/.venv/bin/activate"
 ```
-- **What to expect**: Prepares a lean environment with `torch`, `physicsnemo`, `quantum-metal`, `SQDMetal`, and `gmsh` in 1–2 minutes. Unnecessary bloatware (PySide6/Qt, Jupyter, Ansys) is excluded.
+- **What to expect**: Prepares a lean environment with `torch`, `physicsnemo`, `quantum-metal`, `SQDMetal`, and `gmsh`. Unnecessary bloatware (PySide6/Qt, Jupyter, Ansys) is excluded.
 
 ---
 
@@ -110,7 +105,7 @@ python generate_samples.py \
     --samples 150 \
     --palace-bin "$PALACE_BIN"
 ```
-- **What to expect**: Explores the 4D parameter box via Latin Hypercube Sampling. Reserves 10% of CPU cores for host OS stability and runs Palace across the remaining cores via OpenMPI (~10–15s per sample).
+- **What to expect**: Explores the 4D parameter box via Latin Hypercube Sampling. Reserves 10% of CPU cores for host OS stability and runs Palace across the remaining cores via OpenMPI.
 - **Outputs**: Produces `active_learning_log.csv` and auto-splits data into 70% `train_samples.csv`, 10% `validation_samples.csv`, and 20% `test_samples.csv`. Transient 3D field files (`.vtu`) are deleted automatically to save disk space.
 
 ---
@@ -126,7 +121,7 @@ python train_surrogate.py \
     --early-stopping-patience 200 \
     --evaluation-output training_run/training_data/checkpoints/training_evaluation.json
 ```
-- **What to expect**: Fits the PhysicsNeMo GNN on $\log(E_j)$ and $\log(L_j)$ in ~15–45s. Stops automatically when validation loss plateaus and restores the best weights.
+- **What to expect**: Fits the PhysicsNeMo GNN on $\log(E_j)$ and $\log(L_j)$. Stops automatically when validation loss plateaus and restores the best weights.
 - **Outputs**: Writes `nemo_surrogate.mdlus`, `nemo_surrogate.state.pt`, and `training_evaluation.json` (reporting relative accuracy within 5%, MAE, and independent test score).
 
 ---
@@ -142,8 +137,8 @@ python optimize.py \
     --generations 20 \
     --palace-bin "$PALACE_BIN"
 ```
-- **What to expect**: Evaluates 100 candidate designs per generation in ~2–5 seconds with real-time surrogate scoring. Variable generation loop automatically terminates as soon as the best candidate reaches within 5% of target parameters (or up to 20 max generations), simultaneously deleting old generation data to keep disk usage zero.
-- **Outputs**: Writes winning parameters (`pad_width`, `pad_height`, `pad_gap`, and $L_j$) and predicted frequencies to `optimization_run/optimization_result.json`. Add `--use-palace` to run a live Palace simulation on the final winner.
+- **What to expect**: Evaluates 100 candidate designs per generation with real-time surrogate scoring. In each generation, the best ranking candidates are simulated using AWS Palace and carried forward as elites into the next generation. Variable generation loop automatically terminates as soon as the best candidate reaches within 5% of target parameters (or up to 20 max generations), simultaneously deleting old generation data to keep disk usage zero.
+- **Outputs**: Writes winning parameters (`pad_width`, `pad_height`, `pad_gap`, and $L_j$), predicted frequencies, and verified Palace simulation metrics to `optimization_run/optimization_result.json`.
 
 ---
 
@@ -152,7 +147,7 @@ python optimize.py \
 ```bash
 python -m pytest -q
 ```
-- **What to expect**: Runs 17 unit tests in ~3 seconds, verifying genetic operators, variable stopping, math transforms, MPI bounds, and script syntax.
+- **What to expect**: Runs 18 unit tests across the automated test suite, verifying genetic operators, variable stopping, per-generation Palace simulation, math transforms, MPI bounds, and script syntax.
 
 ---
 
@@ -170,7 +165,9 @@ python -m pytest -q
 | `optimize.py` | `--population` | `100` | Number of candidate designs per GA generation |
 | | `--generations` | `20` | Maximum budget of variable generations to evolve |
 | | `--target-tolerance` | `0.05` | Early stopping tolerance (stops when within 5% of target params) |
-| | `--use-palace` | `False` | Run full-wave Palace validation solve on winning candidate |
+| | `--use-palace` | `True` | Simulate best ranking candidates with Palace each generation and final design |
+| | `--no-palace` | flag | Disable live Palace simulation (surrogate evaluation only) |
+| | `--palace-elites` | `1` | Number of top candidates to simulate with Palace per generation |
 | | `--mpi-procs` | dynamic | Override MPI rank count (capped at $\lceil 0.90 \times \text{cores} \rceil$) |
 
 ---

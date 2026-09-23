@@ -24,16 +24,12 @@ Explore the documentation organized by topic:
 ## Architecture Flow
 
 ```mermaid
-flowchart TD
-    A["Parametric Bounds (4D Hypercube)"] --> B["Latin Hypercube Sampling (LHS)"]
-    B --> C["Qiskit Metal Layout Generation"]
-    C --> D["Gmsh 3D Mesh Generation (.msh)"]
-    D --> E["AWS Palace EM Simulation (MPI)"]
-    E --> F["Automated 70/10/20 Dataset Split"]
-    F --> G["Train PhysicsNeMo Surrogate (Log-Scale)"]
-    G --> H["Genetic Algorithm Optimization Engine"]
-    H --> I["Optimal Transmon Geometry"]
-    H -.->|"--use-palace verification"| E
+flowchart LR
+    A["Design Sampling"] --> B["EM Simulation"]
+    B --> C["AI Surrogate Model"]
+    C --> D["Genetic Optimization"]
+    D --> E["Optimal Qubit Design"]
+    D -.->|"Palace Verification"| B
 ```
 
 ---
