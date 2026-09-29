@@ -160,8 +160,6 @@ BOWTIE= Dict(
         gap = '6 um'
     ),
 
-    
-
     # Substrate and metal film thickness for EM simulations (Ansys Q3D/HFSS)
     physical_params = Dict(
         substrate_thickness = 280e-6,
@@ -304,8 +302,8 @@ if __name__ == '__main__':
     from qiskit_metal import designs
     design = designs.DesignPlanar()
 
-    design = create_design(FOUR_QUBIT_DESIGN_DICT)
-    # print(design.components)
-    # view(design).savefig("design.png")
+    design = create_design(BOWTIE)
+    print(design.components)
+    view(design).savefig("bowtie_design.png")
 
     
