@@ -44,6 +44,10 @@ yarn-error.log*
 *.sqlite
 *.db
 
+# github repos
+quantum-metal/
+SQDMetal/
+qiskit-metal/
 
 
 # Python
@@ -57,3 +61,4 @@ tutorials/
 
 # File I dont want to show
 src\metal_flow\main_design.ipynb
+.DS_Store

@@ -1,7 +1,11 @@
 h5py>=3.16.0
+cdac-quantum-optimizer
 ipywidgets>=8.1.8
 jupyter>=1.1.1
-pandas==2.3
+mph>=1.4.0
+numpy>=1.24
+nvidia-physicsnemo<3,>=2.2
+pandas>=2.0
 pyepr-quantum==1.0.1
 pypalace>=0.1.3
 quantum-metal[full]
@@ -12,3 +16,7 @@ quantum-metal[mesh]
 [:sys_platform == "win32"]
 pywin32>=312
 quantum-metal[full]
+pyvista>=0.49.0
+quantum-metal[mesh]==0.7.4
+sqdmetal
+torch>=2.1
