@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from src.cad import SqdmetalCapacitanceRunner, create_transmon_design
-from src.surrogate import PhysicsNeMoSurrogate
+from src.surrogate import PhysicsNeMoSurrogate, find_sample_logs
 from src.palace import (
     DEFAULT_PALACE_PATH,
     default_mpi_procs,
@@ -127,6 +127,36 @@ def main() -> None:
         help="Replace the first samples with all low/high parameter corners",
     )
     parser.add_argument(
+        "--include-old-samples",
+        nargs="*",
+        default=[],
+        help="Paths or directories of previous sample logs to include and reuse",
+    )
+    parser.add_argument(
+        "--auto-check-old-samples",
+        action="store_true",
+        default=True,
+        help="Automatically search standard run directories for existing samples to reuse",
+    )
+    parser.add_argument(
+        "--no-auto-check-old-samples",
+        dest="auto_check_old_samples",
+        action="store_false",
+        help="Disable automatic search for existing samples",
+    )
+    parser.add_argument(
+        "--reuse-existing-samples",
+        action="store_true",
+        default=True,
+        help="Reuse Palace simulation results if a sampled geometry was already simulated",
+    )
+    parser.add_argument(
+        "--no-reuse-existing-samples",
+        dest="reuse_existing_samples",
+        action="store_false",
+        help="Disable reuse of previously simulated samples (force resimulation)",
+    )
+    parser.add_argument(
         "--keep-visualization",
         action="store_true",
         help="Keep Palace Paraview and diagnostic image files",
@@ -154,6 +184,25 @@ def main() -> None:
         data_log_path=str(data_log),
         checkpoint_path=str(checkpoint),
     )
+
+    # Check for and load older samples if requested or auto-discovered
+    old_sources = list(args.include_old_samples)
+    if args.auto_check_old_samples:
+        discovered = find_sample_logs(
+            search_roots=[Path("results"), Path("training_run"), Path("data"), Path(".")],
+            exclude_paths=[data_log] + [Path(p) for p in old_sources],
+        )
+        if discovered:
+            old_sources.extend(discovered)
+
+    if old_sources:
+        added = surrogate.load_additional_samples(old_sources, deduplicate=True)
+        if added > 0:
+            print(f"Loaded {added} older unique samples from previous runs to reuse.")
+
+    if len(surrogate.X_train) > 0:
+        print(f"Existing samples in pool: {len(surrogate.X_train)} samples")
+
     design = create_transmon_design()
     evaluator = SqdmetalCapacitanceRunner(
         output_root=str(output_root / "data" / "palace_runs"),
@@ -161,6 +210,19 @@ def main() -> None:
         n_procs=args.mpi_procs,
         retain_visualization=args.keep_visualization,
     )
+
+    # Determine safe starting index for new Palace simulation directories
+    palace_runs_dir = output_root / "data" / "palace_runs"
+    palace_runs_dir.mkdir(parents=True, exist_ok=True)
+    existing_indices = []
+    for child in palace_runs_dir.iterdir():
+        if child.is_dir() and child.name.startswith("sample_"):
+            try:
+                existing_indices.append(int(child.name.split("_")[1]))
+            except (IndexError, ValueError):
+                pass
+    next_sample_index = max(existing_indices) + 1 if existing_indices else 0
+
     seed = args.seed
     if seed is None:
         seed = int(np.random.SeedSequence().generate_state(1)[0])
@@ -172,22 +234,48 @@ def main() -> None:
         if len(samples) < len(corners):
             parser.error("--samples must be at least 16 with boundary points enabled")
         samples[:len(corners)] = corners
+
+    for index, sample in enumerate(samples):
+        reused = False
+        if args.reuse_existing_samples and surrogate.X_train.size:
+            bounds_range = BOUNDS[:, 1] - BOUNDS[:, 0]
+            norm_existing = (surrogate.X_train - BOUNDS[:, 0]) / bounds_range
+            norm_cand = (sample - BOUNDS[:, 0]) / bounds_range
+            dists = np.max(np.abs(norm_existing - norm_cand), axis=1)
+            closest_idx = int(np.argmin(dists))
+            if dists[closest_idx] < 1e-3:
+                ej_mhz, ec_mhz = surrogate.Y_train[closest_idx]
+                print(
+                    f"Sample {index + 1}/{args.samples} (REUSED): "
+                    f"Ej={ej_mhz:.3f} MHz, Ec={ec_mhz:.3f} MHz (matched sample #{closest_idx})"
+                )
+                reused = True
+
+        if not reused:
+            run_name = f"sample_{next_sample_index:04d}"
+            next_sample_index += 1
+            update_qiskit_geometry(design, sample, PARAM_NAMES)
+            ej_mhz, ec_mhz = evaluator.evaluate(design, sample, run_name)
+            surrogate.log_and_append_sample(sample, [ej_mhz, ec_mhz])
+            print(
+                f"Sample {index + 1}/{args.samples} (SIMULATED): "
+                f"Ej={ej_mhz:.3f} MHz, Ec={ec_mhz:.3f} MHz"
+            )
+
+    # Consolidate and deduplicate all active training data to disk
+    surrogate.save_training_data(data_log)
+    total_samples = len(surrogate.X_train)
+    print(f"Training data: {data_log}")
+    print(f"Total samples available: {total_samples}")
+
+    split_manifest = output_root / "training_data" / "sample_splits.csv"
     assignments = split_sample_indices(
         rng,
-        args.samples,
+        total_samples,
         args.training_percent,
         args.validation_percent,
         args.test_percent,
     )
-    for index, sample in enumerate(samples):
-        update_qiskit_geometry(design, sample, PARAM_NAMES)
-        ej_mhz, ec_mhz = evaluator.evaluate(design, sample, f"sample_{index:04d}")
-        surrogate.log_and_append_sample(sample, [ej_mhz, ec_mhz])
-        print(f"Sample {index + 1}/{args.samples}: Ej={ej_mhz:.3f} MHz, Ec={ec_mhz:.3f} MHz")
-
-    print(f"Training data: {data_log}")
-    print(f"Samples available: {len(surrogate.X_train)}")
-    split_manifest = output_root / "training_data" / "sample_splits.csv"
     write_sample_splits(data_log, split_manifest, output_root, assignments)
     print(f"Sample splits: {split_manifest}")
     metadata = {

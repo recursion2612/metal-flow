@@ -9,7 +9,7 @@ from src.palace import (
     default_mpi_procs,
     update_qiskit_geometry,
 )
-from src.surrogate import PhysicsNeMoSurrogate
+from src.surrogate import PhysicsNeMoSurrogate, find_sample_logs
 from src.genetic_algorithm import compute_cost, produce_next_generation
 from src.cad import SqdmetalCapacitanceRunner
 
@@ -128,6 +128,9 @@ def run_pipeline(
 
     # Cache simulation results to avoid re-evaluating identical geometries
     sim_cache: dict[tuple[float, ...], tuple[float, float]] = {}
+    if surrogate.X_train.size:
+        for x_meas, y_meas in zip(surrogate.X_train, surrogate.Y_train):
+            sim_cache[tuple(np.round(x_meas, 6))] = (float(y_meas[0]), float(y_meas[1]))
 
     def _eval_candidate_with_palace(candidate: np.ndarray, run_name: str) -> tuple[float, float]:
         cand_key = tuple(np.round(candidate, 6))

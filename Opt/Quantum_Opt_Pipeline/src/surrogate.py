@@ -116,6 +116,96 @@ def random_seed() -> int:
     return int(np.random.SeedSequence().generate_state(1)[0])
 
 
+def deduplicate_samples(
+    x: np.ndarray,
+    y: np.ndarray,
+    rel_tol: float = 1e-4,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Remove duplicate parameter rows within relative tolerance across normalized coordinates.
+    Preserves the order of first occurrences.
+    """
+    if len(x) <= 1:
+        return x, y
+    mins = np.min(x, axis=0)
+    maxs = np.max(x, axis=0)
+    ranges = np.where(maxs > mins, maxs - mins, 1.0)
+    x_norm = (x - mins) / ranges
+
+    keep_indices = []
+    for i in range(len(x)):
+        if not keep_indices:
+            keep_indices.append(i)
+            continue
+        prev_norm = x_norm[keep_indices]
+        dists = np.max(np.abs(prev_norm - x_norm[i]), axis=1)
+        if np.all(dists > rel_tol):
+            keep_indices.append(i)
+
+    return x[keep_indices], y[keep_indices]
+
+
+def find_sample_logs(
+    search_roots: list[str | Path] | None = None,
+    exclude_paths: list[str | Path] | None = None,
+    n_features: int = 4,
+) -> list[Path]:
+    """
+    Search directories for CSV files containing valid transmon measurements.
+    """
+    if search_roots is None:
+        search_roots = [
+            Path("."),
+            Path("results"),
+            Path("training_run"),
+            Path("data"),
+        ]
+
+    exclude_resolved = set()
+    if exclude_paths:
+        for ep in exclude_paths:
+            try:
+                exclude_resolved.add(Path(ep).resolve())
+            except Exception:
+                pass
+
+    expected_cols = [f"param_{i}" for i in range(n_features)] + ["Ej_MHz", "Ec_MHz"]
+    found_logs: list[Path] = []
+    seen_paths = set()
+
+    for root_item in search_roots:
+        root_path = Path(root_item)
+        if not root_path.exists():
+            continue
+        candidates = []
+        if root_path.is_file() and root_path.suffix.lower() == ".csv":
+            candidates = [root_path]
+        elif root_path.is_dir():
+            candidates = list(root_path.glob("**/active_learning_log.csv")) + list(
+                root_path.glob("**/*_samples.csv")
+            )
+
+        for cand in candidates:
+            try:
+                resolved = cand.resolve()
+            except Exception:
+                continue
+            if resolved in exclude_resolved or resolved in seen_paths:
+                continue
+            seen_paths.add(resolved)
+            try:
+                header_line = pd.read_csv(cand, nrows=0)
+                cols = list(header_line.columns)
+                if "split" in cols:
+                    cols.remove("split")
+                if cols == expected_cols:
+                    found_logs.append(cand)
+            except Exception:
+                continue
+
+    return sorted(found_logs)
+
+
 class PhysicsNeMoSurrogate:
     """
     Surrogate management class handling:
@@ -131,11 +221,20 @@ class PhysicsNeMoSurrogate:
     def __init__(
         self, 
         n_features: int, 
-        data_log_path: str = "training_data/active_learning_log.csv",
+        data_log_path: str | Path | list[str | Path] = "training_data/active_learning_log.csv",
         checkpoint_path: str | None = None,
+        extra_data_logs: list[str | Path] | None = None,
     ):
         self.n_features = n_features
-        self.data_log_path = Path(data_log_path)
+        if isinstance(data_log_path, (list, tuple)):
+            self.data_log_path = Path(data_log_path[0])
+            self._initial_logs = [Path(p) for p in data_log_path]
+        else:
+            self.data_log_path = Path(data_log_path)
+            self._initial_logs = [self.data_log_path]
+        if extra_data_logs:
+            self._initial_logs.extend([Path(p) for p in extra_data_logs])
+
         self.checkpoint_path = Path(checkpoint_path) if checkpoint_path else (
             self.data_log_path.parent / "checkpoints" / "nemo_surrogate.mdlus"
         )
@@ -173,6 +272,8 @@ class PhysicsNeMoSurrogate:
         
         self._init_data_log()
         self._load_data_log()
+        if len(self._initial_logs) > 1:
+            self.load_additional_samples(self._initial_logs[1:], deduplicate=True)
         self._load_checkpoint()
         if self.evaluation_path.exists():
             try:
@@ -276,6 +377,82 @@ class PhysicsNeMoSurrogate:
         record = np.hstack([x_reshaped, y_reshaped])
         df = pd.DataFrame(record)
         df.to_csv(self.data_log_path, mode="a", header=False, index=False)
+
+    def load_additional_samples(
+        self,
+        paths: list[str | Path] | str | Path,
+        deduplicate: bool = True,
+        rel_tol: float = 1e-4,
+    ) -> int:
+        """
+        Loads additional samples from one or more CSV files or directories,
+        merges them into self.X_train and self.Y_train, and optionally deduplicates.
+        Returns the number of newly added samples.
+        """
+        if isinstance(paths, (str, Path)):
+            paths = [paths]
+
+        all_new_x = []
+        all_new_y = []
+        expected_cols = [f"param_{i}" for i in range(self.n_features)] + ["Ej_MHz", "Ec_MHz"]
+
+        for item in paths:
+            csv_files = []
+            p = Path(item)
+            if not p.exists():
+                continue
+            if p.is_file():
+                csv_files.append(p)
+            elif p.is_dir():
+                csv_files.extend(sorted(p.glob("**/active_learning_log.csv")))
+                csv_files.extend(sorted(p.glob("**/*_samples.csv")))
+
+            for csv_path in csv_files:
+                try:
+                    if self.data_log_path.exists() and csv_path.resolve() == self.data_log_path.resolve() and self.X_train.size:
+                        continue
+                except Exception:
+                    pass
+                try:
+                    df = pd.read_csv(csv_path)
+                    if "split" in df.columns:
+                        df = df.drop(columns=["split"])
+                    if list(df.columns) != expected_cols:
+                        continue
+                    vals = df.to_numpy(dtype=np.float64)
+                    vals = vals[np.all(np.isfinite(vals), axis=1)]
+                    if vals.size:
+                        all_new_x.append(vals[:, :self.n_features])
+                        all_new_y.append(vals[:, self.n_features:])
+                except Exception:
+                    continue
+
+        if not all_new_x:
+            return 0
+
+        initial_count = len(self.X_train)
+        combined_x = np.vstack([self.X_train] + all_new_x) if self.X_train.size else np.vstack(all_new_x)
+        combined_y = np.vstack([self.Y_train] + all_new_y) if self.Y_train.size else np.vstack(all_new_y)
+
+        if deduplicate:
+            combined_x, combined_y = deduplicate_samples(combined_x, combined_y, rel_tol=rel_tol)
+
+        self.X_train = combined_x
+        self.Y_train = combined_y
+        return len(self.X_train) - initial_count
+
+    def save_training_data(self, output_path: str | Path | None = None) -> Path:
+        """Export current X_train and Y_train to a consolidated CSV."""
+        target = Path(output_path) if output_path else self.data_log_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        headers = [f"param_{i}" for i in range(self.n_features)] + ["Ej_MHz", "Ec_MHz"]
+        if self.X_train.size and self.Y_train.size:
+            data = np.hstack([self.X_train, self.Y_train])
+            df = pd.DataFrame(data, columns=headers)
+        else:
+            df = pd.DataFrame(columns=headers)
+        df.to_csv(target, index=False)
+        return target
 
     def _train_arrays(
         self,

@@ -10,7 +10,11 @@ from .palace import (
     run_palace_solver,
     parse_palace_results,
 )
-from .surrogate import PhysicsNeMoSurrogate
+from .surrogate import (
+    PhysicsNeMoSurrogate,
+    deduplicate_samples,
+    find_sample_logs,
+)
 from .genetic_algorithm import (
     compute_cost,
     select_parents,
@@ -32,6 +36,8 @@ __all__ = [
     "run_palace_solver",
     "parse_palace_results",
     "PhysicsNeMoSurrogate",
+    "deduplicate_samples",
+    "find_sample_logs",
     "compute_cost",
     "select_parents",
     "crossover_sbx",

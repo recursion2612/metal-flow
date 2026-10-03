@@ -2,15 +2,41 @@
 
 import argparse
 
-from src.surrogate import PhysicsNeMoSurrogate, random_seed
+from pathlib import Path
+import json
+
+from src.surrogate import PhysicsNeMoSurrogate, random_seed, find_sample_logs
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--data-log",
-        default="training_data/active_learning_log.csv",
-        help="CSV containing Palace measurements",
+        nargs="+",
+        default=["training_data/active_learning_log.csv"],
+        help="One or more CSV files containing Palace measurements",
+    )
+    parser.add_argument(
+        "--include-old-samples",
+        nargs="*",
+        default=[],
+        help="Directories or CSV files from previous runs to include in training",
+    )
+    parser.add_argument(
+        "--auto-check-old-samples",
+        action="store_true",
+        default=True,
+        help="Automatically check standard directories (results/, training_run/) for older samples",
+    )
+    parser.add_argument(
+        "--no-auto-check-old-samples",
+        dest="auto_check_old_samples",
+        action="store_false",
+        help="Disable automatic search for older sample runs",
+    )
+    parser.add_argument(
+        "--consolidated-output",
+        help="Optional path to save the merged, deduplicated training dataset",
     )
     parser.add_argument(
         "--checkpoint",
@@ -54,11 +80,39 @@ def main() -> None:
         evaluation_seed = random_seed()
     print(f"Evaluation seed: {evaluation_seed}")
 
+    data_logs = [Path(p) for p in args.data_log]
+    primary_log = data_logs[0]
+
     surrogate = PhysicsNeMoSurrogate(
         n_features=4,
-        data_log_path=args.data_log,
+        data_log_path=str(primary_log),
         checkpoint_path=args.checkpoint,
     )
+
+    old_sample_sources = list(args.include_old_samples)
+    if len(data_logs) > 1:
+        old_sample_sources.extend(data_logs[1:])
+
+    if args.auto_check_old_samples:
+        discovered = find_sample_logs(
+            search_roots=[Path("results"), Path("training_run"), Path("data"), Path(".")],
+            exclude_paths=[primary_log] + [Path(p) for p in old_sample_sources],
+        )
+        if discovered:
+            old_sample_sources.extend(discovered)
+
+    initial_samples = len(surrogate.X_train)
+    if old_sample_sources:
+        added = surrogate.load_additional_samples(old_sample_sources, deduplicate=True)
+        if added > 0:
+            print(f"Discovered and merged {added} older/additional unique samples!")
+
+    print(f"Total training dataset: {len(surrogate.X_train)} measured samples (Primary: {initial_samples})")
+
+    if args.consolidated_output:
+        saved_path = surrogate.save_training_data(args.consolidated_output)
+        print(f"Saved consolidated training dataset to: {saved_path}")
+
     if len(surrogate.X_train) < 5:
         raise SystemExit(
             f"Need at least 5 valid Palace samples; found {len(surrogate.X_train)}"

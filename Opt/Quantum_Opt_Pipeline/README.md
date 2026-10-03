@@ -5,7 +5,7 @@
 [![Solver](https://img.shields.io/badge/Solver-AWS%20Palace-FF9900.svg)](https://awslabs.github.io/palace/)
 [![Surrogate](https://img.shields.io/badge/Surrogate-NVIDIA%20PhysicsNeMo-76B900.svg)](https://github.com/NVIDIA/physicsnemo)
 [![CAD](https://img.shields.io/badge/CAD-Qiskit%20Metal-6929C4.svg)](https://qiskit-community.github.io/qiskit-metal/)
-[![Tests](https://img.shields.io/badge/Tests-19%20Passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-22%20Passing-brightgreen.svg)](tests/)
 
 A hybrid CAD and machine learning framework for superconducting transmon qubit design optimization. The pipeline integrates **Qiskit Metal** parameterization, **SQDMetal** + **AWS Palace** finite-element capacitance simulation, an **NVIDIA PhysicsNeMo** surrogate neural network, and a **real-valued Genetic Algorithm (GA)**.
 
@@ -152,19 +152,24 @@ python optimize.py \
 ```bash
 python -m pytest -q
 ```
-- **What to expect**: Runs 19 unit tests in ~5 seconds, verifying genetic operators, variable stopping, math transforms, MPI bounds, transmon capacitance extraction, and script syntax.
+- **What to expect**: Runs 22 unit tests in ~5 seconds, verifying genetic operators, variable stopping, math transforms, MPI bounds, transmon capacitance extraction, sample deduplication, older sample reuse, and script syntax.
 
 ---
 
 ## CLI Options Cheatsheet
 
 | Script | Option | Default | Description |
-| :--- | :--- | :---: | :--- |
+| :--- | :--- | :--- | :--- |
 | `generate_samples.py` | `--samples` | `10` | Number of parametric samples to generate via LHS |
 | | `--include-boundary-points` | `False` | Pin $2^4=16$ boundary corner points to prevent extrapolation |
+| | `--include-old-samples` | `[]` | Extra paths or directories of prior sample logs to include & reuse |
+| | `--reuse-existing-samples` | `True` | Reuse prior Palace simulation results if geometry was already tested |
 | | `--palace-bin` | system | Path to AWS Palace executable binary |
 | | `--seed` | entropy | Random seed for deterministic sample reproduction |
-| `train_surrogate.py` | `--epochs` | `2000` | Maximum number of training epochs |
+| `train_surrogate.py` | `--data-log` | `active_learning_log.csv` | One or more CSV files containing measured samples |
+| | `--include-old-samples` | `[]` | Extra directories or CSV files from previous runs to include |
+| | `--auto-check-old-samples` | `True` | Automatically discover and merge older sample logs in run folders |
+| | `--epochs` | `2000` | Maximum number of training epochs |
 | | `--early-stopping-patience`| `200` | Epochs without validation improvement before early termination |
 | | `--evaluation-output` | `None` | Path to export test-set performance metrics JSON |
 | `optimize.py` | `--population` | `100` | Number of candidate designs per GA generation |
