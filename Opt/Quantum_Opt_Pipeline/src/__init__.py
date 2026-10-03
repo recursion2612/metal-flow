@@ -22,6 +22,7 @@ from .cad import (
     SqdmetalCapacitanceRunner,
     create_transmon_design,
     export_qiskit_metal_gmsh,
+    extract_transmon_c_sigma,
 )
 
 __all__ = [
@@ -39,4 +40,6 @@ __all__ = [
     "SqdmetalCapacitanceRunner",
     "create_transmon_design",
     "export_qiskit_metal_gmsh",
+    "extract_transmon_c_sigma",
 ]
+

@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import torch
 
-from src.cad import _read_terminal_capacitance
+from src.cad import _read_terminal_capacitance, extract_transmon_c_sigma
 from src.genetic_algorithm import produce_next_generation
 from src.surrogate import MeshGraphNet, PhysicsNeMoSurrogate
 from src.palace import max_mpi_procs, update_qiskit_geometry
@@ -97,6 +97,31 @@ def test_terminal_capacitance_reader(tmp_path: Path):
     matrix = _read_terminal_capacitance(path)
     assert matrix.shape == (2, 2)
     assert matrix[0, 0] == 1.0e-12
+
+
+def test_extract_transmon_c_sigma():
+    # 3x3 SQDMetal terminal capacitance matrix: [Chip, Cond1, Cond2]
+    # c12 = 30 fF, c1_g = 60 fF, c2_g = 60 fF
+    # c_g_eff = (60 * 60) / 120 = 30 fF
+    # c_sigma = 30 + 30 = 60 fF = 60e-15
+    matrix_3x3 = np.array([
+        [1.0e-12, -60e-15, -60e-15],
+        [-60e-15, 90e-15, -30e-15],
+        [-60e-15, -30e-15, 90e-15],
+    ])
+    c_sigma = extract_transmon_c_sigma(matrix_3x3)
+    np.testing.assert_allclose(c_sigma, 60e-15)
+
+    # 2x2 matrix fallback: mutual capacitance
+    matrix_2x2 = np.array([
+        [50e-15, -45e-15],
+        [-45e-15, 50e-15],
+    ])
+    assert extract_transmon_c_sigma(matrix_2x2) == 45e-15
+
+    # 1x1 matrix fallback
+    matrix_1x1 = np.array([[70e-15]])
+    assert extract_transmon_c_sigma(matrix_1x1) == 70e-15
 
 
 def test_meshgraphnet_predicts_scalar_regression_outputs():

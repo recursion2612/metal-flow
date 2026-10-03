@@ -325,6 +325,23 @@ def run_pipeline(
         "training_phase_separate": True,
         "optimization_is_frozen": True,
     }
+
+    # Render and export final design layout PNG
+    png_path = output_root / "final_design.png"
+    try:
+        from qiskit_metal import view
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        update_qiskit_geometry(design, best_candidate, param_names)
+        fig = view(design)
+        fig.savefig(str(png_path), bbox_inches="tight", dpi=300)
+        plt.close(fig)
+        result["final_design_image"] = str(png_path)
+    except Exception as exc:
+        result["final_design_image"] = None
+
     result_path = output_root / "optimization_result.json"
     result_path.write_text(json.dumps(result, indent=2) + "\n")
 

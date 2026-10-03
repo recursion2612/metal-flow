@@ -165,7 +165,7 @@ class SqdmetalCapacitanceRunner:
             shutil.rmtree(result_file.parent / "paraview", ignore_errors=True)
             for image_path in result_file.parent.glob("*.png"):
                 image_path.unlink(missing_ok=True)
-        c_sigma = float(matrix[0, 0])
+        c_sigma = extract_transmon_c_sigma(matrix)
         if not np.isfinite(c_sigma) or c_sigma <= 0:
             raise ValueError(f"Invalid qubit self-capacitance in {result_file}: {c_sigma}")
         lj_val = float(params[3])
@@ -174,6 +174,37 @@ class SqdmetalCapacitanceRunner:
         ec_mhz = (E_CHARGE**2 / (2.0 * c_sigma * H_PLANCK)) * 1e-6
         ej_mhz = (PHI_0**2 / (4.0 * np.pi**2 * lj_val * H_PLANCK)) * 1e-6
         return float(ej_mhz), float(ec_mhz)
+
+
+def extract_transmon_c_sigma(matrix: np.ndarray) -> float:
+    """
+    Extract the effective charging capacitance C_sigma for a floating transmon
+    from the Maxwell capacitance matrix (from AWS Palace / SQDMetal).
+
+    For an isolated floating transmon with 3 terminals (SQDMetal default):
+      - Index 0: Chip ground plane ("Chip")
+      - Index 1: Transmon Pad 1 ("Cond1")
+      - Index 2: Transmon Pad 2 ("Cond2")
+
+    C_sigma = C_12 + (C_1_g * C_2_g) / (C_1_g + C_2_g)
+    """
+    if matrix.shape[0] >= 3 and matrix.shape[1] >= 3:
+        c12 = abs(float(matrix[1, 2]))
+        c1_g = abs(float(matrix[1, 0]))
+        c2_g = abs(float(matrix[2, 0]))
+        g_sum = c1_g + c2_g
+        c_g_eff = (c1_g * c2_g) / g_sum if g_sum > 0 else 0.0
+        c_sigma = c12 + c_g_eff
+        if np.isfinite(c_sigma) and c_sigma > 0:
+            return float(c_sigma)
+
+    if matrix.shape[0] == 2 and matrix.shape[1] == 2:
+        c_mutual = abs(float(matrix[0, 1]))
+        if c_mutual > 0:
+            return c_mutual
+        return abs(float(matrix[1, 1]))
+
+    return abs(float(matrix[0, 0]))
 
 
 def _read_terminal_capacitance(path: Path) -> np.ndarray:
