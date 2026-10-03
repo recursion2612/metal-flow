@@ -115,6 +115,29 @@ Results are written to `<output-root>/optimization_result.json`:
   "max_generations": 20,
   "population_size": 100,
   "best_cost": 0.000049,
-  "result_source": "Frozen surrogate evaluation only"
+  "result_source": "Frozen surrogate evaluation only",
+  "final_design_image": "optimization_run/final_design.png"
 }
+```
+
+Additionally, a publication-ready layout render is automatically written to `<output-root>/final_design.png`.
+
+---
+
+## Visualizing & Inspecting Candidate Designs
+
+You can visualize any candidate geometry or completed run layout using `visualize_design.py`:
+
+```bash
+# Render directly from optimization_result.json:
+python visualize_design.py \
+    --result-json optimization_run/optimization_result.json \
+    --output winning_transmon.png
+
+# Or render arbitrary custom dimensions:
+python visualize_design.py \
+    --pad-width 520 \
+    --pad-height 60 \
+    --pad-gap 25 \
+    --output custom_layout.png
 ```

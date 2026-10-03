@@ -43,4 +43,6 @@ flowchart LR
 | **Sampling** | `generate_samples.py` | `python generate_samples.py --output-root run_01 --samples 150` |
 | **Training** | `train_surrogate.py` | `python train_surrogate.py --data-log run_01/training_data/train_samples.csv --test-log run_01/training_data/test_samples.csv` |
 | **Optimization** | `optimize.py` | `python optimize.py --model-checkpoint run_01/training_data/checkpoints/nemo_surrogate.mdlus --model-data-log run_01/training_data/train_samples.csv` |
+| **Visualization** | `visualize_design.py` | `python visualize_design.py --result-json run_01/optimization_result.json --output final_design.png` |
+| **Recomputation** | `recompute_samples.py` | `python recompute_samples.py --training-run-dir run_01` |
 | **Testing** | `pytest` | `python -m pytest -q` |

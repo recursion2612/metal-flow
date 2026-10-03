@@ -55,3 +55,21 @@ This guide resolves common runtime, environment, and solver issues encountered w
 ### 7. Simulation Stalling or Slowing Down
 - **Cause**: Running multiple concurrent generators against the same machine or disk.
 - **Resolution**: Palace already maximizes CPU utilization via OpenMPI. Run generation sequentially and check CPU utilization using `top` or `htop`.
+
+---
+
+## Physical Extraction & Pipeline Data Issues
+
+### 8. $E_c$ Measured at ~19.5 MHz Instead of Target ~320 MHz
+- **Cause**: Reading the Maxwell capacitance matrix from Terminal 0 (the macroscopic $2.8\text{ mm} \times 2.0\text{ mm}$ ground plane chip, with self-capacitance $\approx 1.0\text{ pF}$) instead of the differential transmon pads (Terminals 1 & 2, $\approx 60\text{ fF}$).
+- **Resolution**: Handled in the latest `src/cad.py` via `extract_transmon_c_sigma()`, which computes:
+  $$C_\Sigma = C_{12} + \frac{C_{1,g} \cdot C_{2,g}}{C_{1,g} + C_{2,g}}$$
+  For previous simulation runs, execute:
+  ```bash
+  python recompute_samples.py --training-run-dir <path/to/run>
+  ```
+  to recalculate true $E_c$ across all raw `terminal-C.csv` files in seconds without re-simulating.
+
+### 9. Sample Split Count Mismatch During Incremental Runs
+- **Cause**: Appending new samples into an existing data directory when splitting is restricted to the newly sampled count.
+- **Resolution**: `generate_samples.py` automatically consolidates and partitions the total combined pool of older and new samples across `train_samples.csv`, `validation_samples.csv`, and `test_samples.csv`.

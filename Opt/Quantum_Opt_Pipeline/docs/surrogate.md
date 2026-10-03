@@ -47,7 +47,10 @@ python train_surrogate.py \
 
 | Flag | Default | Description |
 | :--- | :---: | :--- |
-| `--data-log` | `active_learning_log.csv` | Input training CSV containing measured samples. |
+| `--data-log` | `active_learning_log.csv` | One or more input CSV files containing measured samples. |
+| `--include-old-samples` | `[]` | Extra directories or CSV files from prior runs to merge into training. |
+| `--auto-check-old-samples` | `True` | Automatically discover and merge older sample logs in standard run folders. |
+| `--consolidated-output` | `None` | Optional path to export the combined, deduplicated training dataset. |
 | `--test-log` | `None` | Independent test CSV evaluated strictly post-training. |
 | `--checkpoint` | `nemo_surrogate.mdlus` | Destination path for trained model weights. |
 | `--epochs` | `2000` | Maximum number of training epochs. |
@@ -55,6 +58,9 @@ python train_surrogate.py \
 | `--validation-split` | `0.2` | Fraction reserved internally if evaluating a single CSV. |
 | `--accuracy-tolerance-percent`| `5.0` | Relative error tolerance threshold for accuracy score. |
 | `--evaluation-output` | `None` | JSON file destination for complete metric report. |
+
+> [!TIP]
+> **Multi-Dataset Training & Deduplication**: You can provide multiple CSV logs directly to `--data-log` or use `--include-old-samples`. The surrogate will automatically combine all samples, drop duplicate geometries within normalized $10^{-4}$ tolerance, and train the neural network across the unified historical dataset.
 
 ---
 

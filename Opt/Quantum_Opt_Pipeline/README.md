@@ -23,8 +23,8 @@ The optimizer navigates a 4-dimensional geometric and circuit parameter space to
 | `lj` | Junction | Josephson junction linear inductance | 6.0 to 14.0 | nH |
 
 **Optimization Targets**:
-- **Josephson Energy ($E_j$)**: Calculated from inductance $L_j$ (in MHz).
-- **Charging Energy ($E_c$)**: Calculated from Maxwell self-capacitance $C_\Sigma$ via 3D electrostatics (in MHz).
+- **Josephson Energy ($E_j$)**: Calculated from inductance $L_j$ (in MHz): $E_j = \frac{\Phi_0^2}{4\pi^2 L_j h} \times 10^{-6}$.
+- **Charging Energy ($E_c$)**: Calculated from transmon differential pad capacitance $C_\Sigma = C_{12} + \frac{C_{1,g} \cdot C_{2,g}}{C_{1,g} + C_{2,g}}$ via 3D electrostatics (in MHz): $E_c = \frac{e^2}{2 C_\Sigma h} \times 10^{-6}$.
 - **Qubit Metrics**: Targets transition frequency $\omega_{01} \approx \sqrt{8 E_j E_c} - E_c$ and anharmonicity $\alpha \approx -E_c$ while enforcing the transmon dispersion threshold ($E_j / E_c \ge 40$).
 
 ---
@@ -37,7 +37,7 @@ flowchart TD
     B --> C["Qiskit Metal Layout Generation"]
     C --> D["Gmsh 3D Mesh Generation (.msh)"]
     D --> E["AWS Palace Finite-Element Solve (MPI)"]
-    E --> F["Extract Maxwell Capacitance Matrix"]
+    E --> F["Extract Transmon Capacitance C_sigma"]
     F --> G["Automated 70/10/20 Dataset Split"]
     G --> H["Train PhysicsNeMo GNN Surrogate (Log-Scale)"]
     H --> I["Real-Valued Genetic Algorithm (GA)"]
@@ -55,6 +55,8 @@ Opt/Quantum_Opt_Pipeline/
 ├── train_surrogate.py        # Step 3: PhysicsNeMo GNN training with early stopping
 ├── optimize.py               # Step 4: Real-valued Genetic Algorithm optimization
 ├── pipeline.py               # Active learning & orchestration pipeline
+├── visualize_design.py       # Layout visualizer & high-resolution PNG generator
+├── recompute_samples.py      # Batch recalculation of true Ec from raw Palace CSVs
 ├── setup_environment.sh      # Core environment setup script (native venv & Docker)
 ├── setup_env.sh              # Portable wrapper for environment setup
 ├── run_container.sh          # Docker container execution wrapper
@@ -63,12 +65,11 @@ Opt/Quantum_Opt_Pipeline/
 ├── requirements-cpu.txt      # Lean CPU dependency requirements
 ├── requirements.txt          # CUDA-accelerated dependency requirements
 ├── src/                      # Core pipeline modules
-│   ├── cad.py                # Qiskit Metal transmon geometry construction
-│   ├── mesh.py               # Gmsh meshing and surface identification
+│   ├── cad.py                # Qiskit Metal transmon geometry & capacitance extraction
 │   ├── palace.py             # Palace config generator and MPI core allocator
-│   ├── model.py              # PhysicsNeMo MeshGraphNet GNN architecture
+│   ├── surrogate.py          # PhysicsNeMo MeshGraphNet GNN architecture & active learning
 │   └── genetic_algorithm.py  # SBX crossover, polynomial mutation & cost function
-├── tests/                    # Automated pytest unit test suite
+├── tests/                    # Automated pytest unit test suite (22 tests)
 └── docs/                     # Modular topic documentation guides
 ```
 
@@ -152,24 +153,19 @@ python optimize.py \
 ```bash
 python -m pytest -q
 ```
-- **What to expect**: Runs 22 unit tests in ~5 seconds, verifying genetic operators, variable stopping, math transforms, MPI bounds, transmon capacitance extraction, sample deduplication, older sample reuse, and script syntax.
+- **What to expect**: Runs 19 unit tests in ~5 seconds, verifying genetic operators, variable stopping, math transforms, MPI bounds, transmon capacitance extraction, and script syntax.
 
 ---
 
 ## CLI Options Cheatsheet
 
 | Script | Option | Default | Description |
-| :--- | :--- | :--- | :--- |
+| :--- | :--- | :---: | :--- |
 | `generate_samples.py` | `--samples` | `10` | Number of parametric samples to generate via LHS |
 | | `--include-boundary-points` | `False` | Pin $2^4=16$ boundary corner points to prevent extrapolation |
-| | `--include-old-samples` | `[]` | Extra paths or directories of prior sample logs to include & reuse |
-| | `--reuse-existing-samples` | `True` | Reuse prior Palace simulation results if geometry was already tested |
 | | `--palace-bin` | system | Path to AWS Palace executable binary |
 | | `--seed` | entropy | Random seed for deterministic sample reproduction |
-| `train_surrogate.py` | `--data-log` | `active_learning_log.csv` | One or more CSV files containing measured samples |
-| | `--include-old-samples` | `[]` | Extra directories or CSV files from previous runs to include |
-| | `--auto-check-old-samples` | `True` | Automatically discover and merge older sample logs in run folders |
-| | `--epochs` | `2000` | Maximum number of training epochs |
+| `train_surrogate.py` | `--epochs` | `2000` | Maximum number of training epochs |
 | | `--early-stopping-patience`| `200` | Epochs without validation improvement before early termination |
 | | `--evaluation-output` | `None` | Path to export test-set performance metrics JSON |
 | `optimize.py` | `--population` | `100` | Number of candidate designs per GA generation |

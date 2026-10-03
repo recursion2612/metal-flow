@@ -96,11 +96,32 @@ python optimize.py \
 - **Optimization Process**: Evaluates 100 candidate designs per generation using tournament selection, SBX crossover, and polynomial mutation. In each generation, the best ranking candidates are simulated with AWS Palace and carried forward as elites into the next generation. Stops early when the best candidate reaches within 5% of target parameters (or up to 20 max generations), simultaneously deleting old generation data to keep disk usage zero.
 - **Artifacts Created**:
   - `optimization_run/optimization_result.json`: Summary containing winning parameters (`pad_width`, `pad_height`, `pad_gap`, and $L_j$), predicted frequencies, and verified Palace simulation metrics.
+  - `optimization_run/final_design.png`: High-resolution render of the winning transmon chip layout.
 - **Palace Simulation**: Simulated results from Palace are recorded for the best candidate in each generation and for the final winning design.
 
 ---
 
-## Step 5: Test Suite Verification
+## Step 5: Design Layout Visualization
+
+Render any design layout directly to a high-resolution PNG:
+
+```bash
+# Render layout from optimization_result.json:
+python visualize_design.py \
+    --result-json optimization_run/optimization_result.json \
+    --output final_layout.png
+
+# Or specify custom geometric parameters directly:
+python visualize_design.py \
+    --pad-width 520 \
+    --pad-height 60 \
+    --pad-gap 25 \
+    --output custom_qubit.png
+```
+
+---
+
+## Step 6: Test Suite Verification
 
 Run the automated test suite to ensure all unit tests and environment assertions pass:
 
@@ -109,7 +130,7 @@ python -m pytest -q
 ```
 
 ### What to Expect
-- **Result**: All tests passing, confirming math transforms, genetic operators, Palace simulation loop, MPI rules, and script integrity.
+- **Result**: All 22 tests passing, confirming math transforms, genetic operators, Palace simulation loop, MPI rules, sample deduplication, older sample reuse, and script integrity.
 
 ---
 
@@ -119,3 +140,4 @@ python -m pytest -q
 - For parameter ranges and sampling controls: see [Sample Generation](sampling.md).
 - For GNN architecture and loss curves: see [Surrogate Modeling](surrogate.md).
 - For GA objective formulations: see [Genetic Optimization](optimization.md).
+- For batch recalculation of raw simulation matrices: see `recompute_samples.py`.

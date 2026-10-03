@@ -16,8 +16,11 @@ The pipeline explores four continuous geometric and circuit variables:
 | 3 | `lj` | Josephson junction linear inductance | 6.0 to 14.0 | nH |
 
 Target Hamiltonian energies derived from simulation:
-- **$E_j$ (Josephson Energy)**: Calculated in MHz from Josephson inductance $L_j$.
-- **$E_c$ (Charging Energy)**: Calculated in MHz from Maxwell self-capacitance $C_\Sigma$.
+- **$E_j$ (Josephson Energy)**: Calculated from junction inductance $L_j$ (in MHz):
+  $$E_j = \frac{\Phi_0^2}{4\pi^2 L_j h} \times 10^{-6}$$
+- **$E_c$ (Charging Energy)**: Calculated from effective transmon pad capacitance $C_\Sigma$ (in MHz):
+  $$E_c = \frac{e^2}{2 C_\Sigma h} \times 10^{-6}, \quad C_\Sigma = C_{12} + \frac{C_{1,g} \cdot C_{2,g}}{C_{1,g} + C_{2,g}}$$
+  where $C_{12}$ is the mutual capacitance between transmon pads (Terminals 1 & 2), and $C_{1,g}, C_{2,g}$ are the capacitances of each pad to the chip ground plane (Terminal 0).
 
 ---
 
@@ -43,6 +46,16 @@ To prevent surrogate extrapolation errors when the Genetic Algorithm searches pa
 ```bash
 python generate_samples.py --output-root run_01 --samples 150 --include-boundary-points
 ```
+
+### 4. Reusing Prior Simulations & Multi-Run Merging
+To save computational resources and avoid repeating expensive Palace finite-element solves, `generate_samples.py` automatically checks for existing or prior simulation datasets:
+- **Auto-Discovery (`--auto-check-old-samples`, default: `True`)**: Discovers existing `active_learning_log.csv` files in `results/`, `training_run/`, and `data/`.
+- **Simulation Reuse (`--reuse-existing-samples`, default: `True`)**: When a newly drawn LHS candidate matches a previously simulated geometry (within 0.1% normalized tolerance), its $E_j$ and $E_c$ are **reused directly**, skipping the Palace solver.
+- **Explicit Sources**: You can point directly to previous runs:
+  ```bash
+  python generate_samples.py --output-root run_02 --samples 50 --include-old-samples results/run_01/
+  ```
+- **Safe Indexing**: Automatically continues indexing (`sample_0150`, etc.) in `data/palace_runs` without clobbering existing directories.
 
 ---
 
