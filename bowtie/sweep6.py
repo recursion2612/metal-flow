@@ -12,7 +12,7 @@ from qiskit_metal.qlibrary.tlines.pathfinder import RoutePathfinder
 from qiskit_metal.analyses import LOManalysis
 
 from itertools import product
-
+import time
 import pandas as pd
 
 design = designs.DesignPlanar()
@@ -72,15 +72,25 @@ sweep_setup = Dict(design = design,
 
 print(sweep_setup)
 
-pad_widths = [width for width in range(400, 600, 25)]
-pad_heights = [height for height in range(50, 200, 15)]
-pad_gaps = [gap for gap in range(10, 55, 5)]
+pad_widths  = [450, 500]
+pad_heights = [60, 65, 70, 75, 80, 90]
+pad_gaps    = [10, 20, 30, 40]
 
-pin_pad_widths  = [width for width in range(30, 200, 20)]
-pin_pad_heights = [height for height in range(20, 50, 5)]
-pin_pad_gaps = [gap for gap in range(5, 50, 5)]
+pin_pad_widths  = [50, 100, 150]
+pin_pad_heights = [30, 40]
+pin_pad_gaps    = [10, 20, 30]
 
 Ljs = [Lj for Lj in range(5, 26, 1)]
+
+# print(len(pad_widths))
+# print(len(pad_heights))
+# print(len(pad_gaps))
+# print(len(pin_pad_gaps))
+# print(len(pin_pad_heights))
+# print(len(pad_widths))
+# print(len(Ljs))
+
+# print(len(pad_widths)*len(pad_heights)*len(pad_gaps)*len(pin_pad_gaps)*len(pin_pad_heights)*len(pad_widths))
 
 lom.setup = sweep_setup.lom_setup
 lom.sim.setup = sweep_setup.lom_sim_setup
@@ -96,6 +106,7 @@ pin_grid = product(pin_pad_widths, pin_pad_heights, pin_pad_gaps)
 for q_params, p_params in product(qubit_grid, pin_grid):
     w, h, g = q_params
     pw, ph, pg = p_params
+
     
     # Update main qubit pads
     qubit = design.components[qubit_name]
@@ -116,6 +127,8 @@ for q_params, p_params in product(qubit_grid, pin_grid):
 
         lom.sim.design.rebuild()
 
+        start = time.perf_counter()
+
         lom.sim.run(name=qubit_name+'_capacitive', **sweep_setup.run_args_dict)
 
         for inductance in Ljs:
@@ -125,7 +138,8 @@ for q_params, p_params in product(qubit_grid, pin_grid):
             result_dict.update(lom.lumped_oscillator)
             data_list.append(result_dict)
 
-
+        stop = time.perf_counter() - start
+        print(stop)
 
 df = pd.DataFrame(data_list)
 
