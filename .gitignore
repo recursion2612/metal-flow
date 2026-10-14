@@ -44,6 +44,10 @@ yarn-error.log*
 *.sqlite
 *.db
 
+# github repos
+quantum-metal/
+SQDMetal/
+qiskit-metal/
 
 
 # Python

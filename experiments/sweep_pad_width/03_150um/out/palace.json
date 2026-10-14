@@ -1,0 +1,82 @@
+{
+  "ElapsedTime": {
+    "Counts": {
+      "Adaptation": 0,
+      "CoarseSolve": 48,
+      "Construction": 1,
+      "DiskIO": 3,
+      "Div.-FreeProjection": 0,
+      "EigenvalueSolve": 0,
+      "Estimation": 3,
+      "FarFields": 0,
+      "Gridfunction": 0,
+      "Initialization": 2,
+      "LinearSolve": 3,
+      "MeshPreprocessing": 1,
+      "OperatorConstruction": 1,
+      "PROMConstruction": 0,
+      "PROMSolve": 0,
+      "Paraview": 0,
+      "Postprocessing": 8,
+      "Preconditioner": 48,
+      "Rebalancing": 0,
+      "Setup": 1,
+      "Solve": 3,
+      "TimeStepping": 0,
+      "Total": 1,
+      "WavePorts": 0
+    },
+    "Durations": {
+      "Adaptation": 0.0,
+      "CoarseSolve": 0.032898801000000005,
+      "Construction": 1.704658287,
+      "DiskIO": 0.382067616,
+      "Div.-FreeProjection": 0.0,
+      "EigenvalueSolve": 0.0,
+      "Estimation": 0.03969613,
+      "FarFields": 0.0,
+      "Gridfunction": 0.0,
+      "Initialization": 0.040474606999999996,
+      "LinearSolve": 0.222488757,
+      "MeshPreprocessing": 0.8510583930000001,
+      "OperatorConstruction": 0.11092147799999999,
+      "PROMConstruction": 0.0,
+      "PROMSolve": 0.0,
+      "Paraview": 0.0,
+      "Postprocessing": 0.06419855399999999,
+      "Preconditioner": 1.9091993639999996,
+      "Rebalancing": 0.0,
+      "Setup": 0.582182615,
+      "Solve": 3.116736852,
+      "TimeStepping": 0.0,
+      "Total": 9.531648387,
+      "WavePorts": 0.0
+    }
+  },
+  "GitTag": "869ee5c",
+  "LinearSolver": {
+    "TotalIts": 42,
+    "TotalSolves": 3
+  },
+  "PeakMemoryMegabytes": {
+    "Average": 160.41796875,
+    "Max": 164.46484375,
+    "Min": 151.65234375,
+    "Total": 1283.34375
+  },
+  "PeakNodeMemoryMegabytes": {
+    "Average": 1283.34375,
+    "Max": 1283.34375,
+    "Min": 1283.34375,
+    "Total": 1283.34375
+  },
+  "Problem": {
+    "DegreesOfFreedom": 123665,
+    "MPISize": 8,
+    "MeshElements": 85740,
+    "MultigridDegreesOfFreedom": [
+      17299,
+      123665
+    ]
+  }
+}

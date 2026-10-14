@@ -1,0 +1,82 @@
+{
+  "ElapsedTime": {
+    "Counts": {
+      "Adaptation": 0,
+      "CoarseSolve": 48,
+      "Construction": 1,
+      "DiskIO": 3,
+      "Div.-FreeProjection": 0,
+      "EigenvalueSolve": 0,
+      "Estimation": 3,
+      "FarFields": 0,
+      "Gridfunction": 0,
+      "Initialization": 2,
+      "LinearSolve": 3,
+      "MeshPreprocessing": 1,
+      "OperatorConstruction": 1,
+      "PROMConstruction": 0,
+      "PROMSolve": 0,
+      "Paraview": 0,
+      "Postprocessing": 8,
+      "Preconditioner": 48,
+      "Rebalancing": 0,
+      "Setup": 1,
+      "Solve": 3,
+      "TimeStepping": 0,
+      "Total": 1,
+      "WavePorts": 0
+    },
+    "Durations": {
+      "Adaptation": 0.0,
+      "CoarseSolve": 0.031273829999999996,
+      "Construction": 0.92377728,
+      "DiskIO": 0.505874583,
+      "Div.-FreeProjection": 0.0,
+      "EigenvalueSolve": 0.0,
+      "Estimation": 0.034513256,
+      "FarFields": 0.0,
+      "Gridfunction": 0.0,
+      "Initialization": 0.038478775,
+      "LinearSolve": 0.20100969400000002,
+      "MeshPreprocessing": 1.340600383,
+      "OperatorConstruction": 0.10360028899999998,
+      "PROMConstruction": 0.0,
+      "PROMSolve": 0.0,
+      "Paraview": 0.0,
+      "Postprocessing": 0.065670959,
+      "Preconditioner": 1.6284693089999995,
+      "Rebalancing": 0.0,
+      "Setup": 0.32895373,
+      "Solve": 3.967481342,
+      "TimeStepping": 0.0,
+      "Total": 9.681152711,
+      "WavePorts": 0.0
+    }
+  },
+  "GitTag": "869ee5c",
+  "LinearSolver": {
+    "TotalIts": 42,
+    "TotalSolves": 3
+  },
+  "PeakMemoryMegabytes": {
+    "Average": 152.89892578125,
+    "Max": 158.72265625,
+    "Min": 147.48046875,
+    "Total": 1223.19140625
+  },
+  "PeakNodeMemoryMegabytes": {
+    "Average": 1223.19140625,
+    "Max": 1223.19140625,
+    "Min": 1223.19140625,
+    "Total": 1223.19140625
+  },
+  "Problem": {
+    "DegreesOfFreedom": 116720,
+    "MPISize": 8,
+    "MeshElements": 80611,
+    "MultigridDegreesOfFreedom": [
+      16391,
+      116720
+    ]
+  }
+}

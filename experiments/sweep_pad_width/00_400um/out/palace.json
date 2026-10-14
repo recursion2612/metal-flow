@@ -1,0 +1,82 @@
+{
+  "ElapsedTime": {
+    "Counts": {
+      "Adaptation": 0,
+      "CoarseSolve": 51,
+      "Construction": 1,
+      "DiskIO": 3,
+      "Div.-FreeProjection": 0,
+      "EigenvalueSolve": 0,
+      "Estimation": 3,
+      "FarFields": 0,
+      "Gridfunction": 0,
+      "Initialization": 2,
+      "LinearSolve": 3,
+      "MeshPreprocessing": 1,
+      "OperatorConstruction": 1,
+      "PROMConstruction": 0,
+      "PROMSolve": 0,
+      "Paraview": 0,
+      "Postprocessing": 8,
+      "Preconditioner": 51,
+      "Rebalancing": 0,
+      "Setup": 1,
+      "Solve": 3,
+      "TimeStepping": 0,
+      "Total": 1,
+      "WavePorts": 0
+    },
+    "Durations": {
+      "Adaptation": 0.0,
+      "CoarseSolve": 0.033709855,
+      "Construction": 1.501084375,
+      "DiskIO": 0.36972429300000004,
+      "Div.-FreeProjection": 0.0,
+      "EigenvalueSolve": 0.0,
+      "Estimation": 0.044724002,
+      "FarFields": 0.0,
+      "Gridfunction": 0.0,
+      "Initialization": 0.041981677999999994,
+      "LinearSolve": 0.21667373400000006,
+      "MeshPreprocessing": 0.887431021,
+      "OperatorConstruction": 0.10946702,
+      "PROMConstruction": 0.0,
+      "PROMSolve": 0.0,
+      "Paraview": 0.0,
+      "Postprocessing": 0.059046268,
+      "Preconditioner": 1.8311453989999993,
+      "Rebalancing": 0.0,
+      "Setup": 0.469387893,
+      "Solve": 3.0793221710000003,
+      "TimeStepping": 0.0,
+      "Total": 9.153527211,
+      "WavePorts": 0.0
+    }
+  },
+  "GitTag": "869ee5c",
+  "LinearSolver": {
+    "TotalIts": 45,
+    "TotalSolves": 3
+  },
+  "PeakMemoryMegabytes": {
+    "Average": 159.45654296875,
+    "Max": 164.86328125,
+    "Min": 154.53125,
+    "Total": 1275.65234375
+  },
+  "PeakNodeMemoryMegabytes": {
+    "Average": 1275.65234375,
+    "Max": 1275.65234375,
+    "Min": 1275.65234375,
+    "Total": 1275.65234375
+  },
+  "Problem": {
+    "DegreesOfFreedom": 122442,
+    "MPISize": 8,
+    "MeshElements": 84975,
+    "MultigridDegreesOfFreedom": [
+      17078,
+      122442
+    ]
+  }
+}

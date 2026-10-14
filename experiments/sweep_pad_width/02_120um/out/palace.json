@@ -1,0 +1,82 @@
+{
+  "ElapsedTime": {
+    "Counts": {
+      "Adaptation": 0,
+      "CoarseSolve": 50,
+      "Construction": 1,
+      "DiskIO": 3,
+      "Div.-FreeProjection": 0,
+      "EigenvalueSolve": 0,
+      "Estimation": 3,
+      "FarFields": 0,
+      "Gridfunction": 0,
+      "Initialization": 2,
+      "LinearSolve": 3,
+      "MeshPreprocessing": 1,
+      "OperatorConstruction": 1,
+      "PROMConstruction": 0,
+      "PROMSolve": 0,
+      "Paraview": 0,
+      "Postprocessing": 8,
+      "Preconditioner": 50,
+      "Rebalancing": 0,
+      "Setup": 1,
+      "Solve": 3,
+      "TimeStepping": 0,
+      "Total": 1,
+      "WavePorts": 0
+    },
+    "Durations": {
+      "Adaptation": 0.0,
+      "CoarseSolve": 0.031061061000000004,
+      "Construction": 1.541995909,
+      "DiskIO": 0.39829753500000004,
+      "Div.-FreeProjection": 0.0,
+      "EigenvalueSolve": 0.0,
+      "Estimation": 0.035071103,
+      "FarFields": 0.0,
+      "Gridfunction": 0.0,
+      "Initialization": 0.037479443,
+      "LinearSolve": 0.17771108800000007,
+      "MeshPreprocessing": 0.7949604499999999,
+      "OperatorConstruction": 0.10533205100000001,
+      "PROMConstruction": 0.0,
+      "PROMSolve": 0.0,
+      "Paraview": 0.0,
+      "Postprocessing": 0.057578630000000006,
+      "Preconditioner": 1.5774395339999996,
+      "Rebalancing": 0.0,
+      "Setup": 0.409012027,
+      "Solve": 2.741250529,
+      "TimeStepping": 0.0,
+      "Total": 8.382565636,
+      "WavePorts": 0.0
+    }
+  },
+  "GitTag": "869ee5c",
+  "LinearSolver": {
+    "TotalIts": 44,
+    "TotalSolves": 3
+  },
+  "PeakMemoryMegabytes": {
+    "Average": 156.3486328125,
+    "Max": 159.2421875,
+    "Min": 152.875,
+    "Total": 1250.7890625
+  },
+  "PeakNodeMemoryMegabytes": {
+    "Average": 1250.7890625,
+    "Max": 1250.7890625,
+    "Min": 1250.7890625,
+    "Total": 1250.7890625
+  },
+  "Problem": {
+    "DegreesOfFreedom": 120338,
+    "MPISize": 8,
+    "MeshElements": 83379,
+    "MultigridDegreesOfFreedom": [
+      16829,
+      120338
+    ]
+  }
+}
