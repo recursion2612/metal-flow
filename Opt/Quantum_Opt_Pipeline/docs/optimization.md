@@ -66,6 +66,43 @@ python optimize.py \
     --no-palace
 ```
 
+### Mode 3: Inverse Design Mode with Multi-Objective Selection
+
+Synthesizes chip geometry directly from high-level circuit specifications:
+
+```bash
+python optimize.py \
+    --output-root optimization_run \
+    --model-checkpoint training_run/training_data/checkpoints/nemo_surrogate.mdlus \
+    --model-data-log training_run/training_data/train_samples.csv \
+    --fq "4.5 GHz" \
+    --alpha "220 MHz" \
+    --coupling-g "15 MHz" \
+    --selection-t1 ">100us" \
+    --selection-ratio ">50, <100" \
+    --include-readout-pad \
+    --show-metrics
+```
+
+### High-Level Python API (`optimize_design`)
+
+The pipeline can also be called programmatically via Python:
+
+```python
+from pipeline import optimize_design
+
+design = optimize_design(
+    params_dict={"fQ": "4.5 GHz", "alpha": "220 MHz", "g": "15 MHz"},
+    selection={"T1": ">100us", "ratio": ">50, <100"},
+    include_readout_pad=True,
+    output_dir="optimization_run"
+)
+
+print("Synthesized Geometry:", design["best_parameters"])
+print("Achieved Frequency:", design["achieved_cQED_metrics"]["fQ_GHz"], "GHz")
+print("Purcell Coherence T1:", design["achieved_cQED_metrics"]["purcell_T1_us"], "us")
+```
+
 ---
 
 ## Variable Generations & Simultaneous Cleanup
@@ -115,29 +152,6 @@ Results are written to `<output-root>/optimization_result.json`:
   "max_generations": 20,
   "population_size": 100,
   "best_cost": 0.000049,
-  "result_source": "Frozen surrogate evaluation only",
-  "final_design_image": "optimization_run/final_design.png"
+  "result_source": "Frozen surrogate evaluation only"
 }
-```
-
-Additionally, a publication-ready layout render is automatically written to `<output-root>/final_design.png`.
-
----
-
-## Visualizing & Inspecting Candidate Designs
-
-You can visualize any candidate geometry or completed run layout using `visualize_design.py`:
-
-```bash
-# Render directly from optimization_result.json:
-python visualize_design.py \
-    --result-json optimization_run/optimization_result.json \
-    --output winning_transmon.png
-
-# Or render arbitrary custom dimensions:
-python visualize_design.py \
-    --pad-width 520 \
-    --pad-height 60 \
-    --pad-gap 25 \
-    --output custom_layout.png
 ```

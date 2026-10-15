@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import gc
 import json
 from pathlib import Path
 import shutil
+from typing import Any
 import numpy as np
 
 from src.palace import (
@@ -30,6 +33,9 @@ def run_pipeline(
     train_surrogate: bool = False,
     use_palace: bool = True,
     palace_elites: int = 1,
+    min_ratio: float = 40.0,
+    max_ratio: float = float("inf"),
+    inverse_meta: dict[str, Any] | None = None,
 ):
     # -------------------------------------------------------------------------
     # 1. Parameter Names & Boundary Limits
@@ -169,12 +175,14 @@ def run_pipeline(
             if cand_key in sim_cache:
                 sim_ej, sim_ec = sim_cache[cand_key]
                 costs[i] = compute_cost(
-                    sim_ej, sim_ec, ej_target=ej_target, ec_target=ec_target
+                    sim_ej, sim_ec, ej_target=ej_target, ec_target=ec_target,
+                    min_ratio=min_ratio, max_ratio=max_ratio
                 )
             else:
                 ej_mhz, ec_mhz = predictions[i]
                 costs[i] = compute_cost(
-                    ej_mhz, ec_mhz, ej_target=ej_target, ec_target=ec_target
+                    ej_mhz, ec_mhz, ej_target=ej_target, ec_target=ec_target,
+                    min_ratio=min_ratio, max_ratio=max_ratio
                 )
 
         # After every population evaluation, simulate the best ranking candidates using Palace
@@ -189,7 +197,8 @@ def run_pipeline(
                     sim_run_name = f"gen_{gen:02d}_elite_{simulated_in_gen:02d}"
                     sim_ej, sim_ec = _eval_candidate_with_palace(cand, sim_run_name)
                     costs[cand_idx] = compute_cost(
-                        sim_ej, sim_ec, ej_target=ej_target, ec_target=ec_target
+                        sim_ej, sim_ec, ej_target=ej_target, ec_target=ec_target,
+                        min_ratio=min_ratio, max_ratio=max_ratio
                     )
                     simulated_in_gen += 1
                     if simulated_in_gen >= palace_elites:
@@ -247,13 +256,16 @@ def run_pipeline(
         )
 
         # Variable stopping: Check if candidate is within tolerance (default: 5%)
-        # and satisfies physical regime conditions (transmon ratio Ej/Ec >= 40)
+        # and satisfies physical regime conditions (transmon ratio Ej/Ec in selection bounds)
         ratio = best_ej_eval / max(1e-3, best_ec_eval)
+        ratio_ok = ratio >= min_ratio and (not np.isfinite(max_ratio) or ratio <= max_ratio)
+        ej_bounds_ok = (ej_target * 0.7 <= best_ej_eval <= ej_target * 1.3) or (15000.0 <= best_ej_eval <= 30000.0)
+        ec_bounds_ok = (ec_target * 0.7 <= best_ec_eval <= ec_target * 1.3) or (200.0 <= best_ec_eval <= 500.0)
         if (
             max_rel_err <= target_tolerance
-            and ratio >= 40.0
-            and 15000.0 <= best_ej_eval <= 30000.0
-            and 300.0 <= best_ec_eval <= 500.0
+            and ratio_ok
+            and ej_bounds_ok
+            and ec_bounds_ok
         ):
             print(
                 f"\n--> Convergence achieved: best candidate is within {target_tolerance * 100:.1f}% "
@@ -290,11 +302,11 @@ def run_pipeline(
             best_ej_mhz, best_ec_mhz = sim_cache[cand_key]
         else:
             best_ej_mhz, best_ec_mhz = _eval_candidate_with_palace(best_candidate, final_run_name)
-        final_costs = np.array([compute_cost(best_ej_mhz, best_ec_mhz, ej_target=ej_target, ec_target=ec_target)])
+        final_costs = np.array([compute_cost(best_ej_mhz, best_ec_mhz, ej_target=ej_target, ec_target=ec_target, min_ratio=min_ratio, max_ratio=max_ratio)])
         result_source = "Palace validation of frozen surrogate-selected design"
     else:
         best_ej_mhz, best_ec_mhz = predicted_ej_mhz, predicted_ec_mhz
-        final_costs = np.array([compute_cost(best_ej_mhz, best_ec_mhz, ej_target=ej_target, ec_target=ec_target)])
+        final_costs = np.array([compute_cost(best_ej_mhz, best_ec_mhz, ej_target=ej_target, ec_target=ec_target, min_ratio=min_ratio, max_ratio=max_ratio)])
         result_source = "Frozen surrogate evaluation only"
 
     best_ej_err = abs(best_ej_mhz - ej_target) / ej_target
@@ -329,6 +341,24 @@ def run_pipeline(
         "optimization_is_frozen": True,
     }
 
+    # Attach achieved cQED Hamiltonian metrics & inverse target metadata
+    fq_achieved_ghz = (np.sqrt(8.0 * best_ej_mhz * best_ec_mhz) - best_ec_mhz) / 1000.0
+    alpha_achieved_mhz = best_ec_mhz
+    from src.inverse_design import compute_purcell_t1
+    g_ref = 10.0
+    if inverse_meta and "targets" in inverse_meta:
+        g_ref = inverse_meta["targets"].get("g_MHz", 10.0)
+    t1_achieved_us = compute_purcell_t1(fq_achieved_ghz, g_MHz=g_ref)
+
+    result["achieved_cQED_metrics"] = {
+        "fQ_GHz": float(fq_achieved_ghz),
+        "alpha_MHz": float(alpha_achieved_mhz),
+        "Ej_Ec_ratio": float(best_ej_mhz / max(1e-3, best_ec_mhz)),
+        "T1_Purcell_us": float(t1_achieved_us),
+    }
+    if inverse_meta:
+        result["inverse_specification"] = inverse_meta
+
     # Render and export final design layout PNG
     png_path = output_root / "final_design.png"
     try:
@@ -358,6 +388,7 @@ def run_pipeline(
     print(f"Generations Run      : {completed_generations} (Max: {generations}, Converged: {result['converged_within_tolerance']})")
     print(f"Population Size      : {pop_size}")
     print(f"Target Errors        : Ej: {best_ej_err * 100:.2f}%, Ec: {best_ec_err * 100:.2f}% (Tolerance: {target_tolerance * 100:.1f}%)")
+    print(f"Achieved cQED Values : fQ = {fq_achieved_ghz:.3f} GHz, alpha = {alpha_achieved_mhz:.1f} MHz, T1 = {t1_achieved_us:.1f} us")
     print("Optimal Parameters:")
     for name, val in zip(param_names, best_candidate):
         if name.lower() in ["lj", "l_j"]:
@@ -366,6 +397,96 @@ def run_pipeline(
             print(f"  - {name:<20}: {val:.3f} um")
     print(f"Result manifest      : {result_path}")
     return result
+
+
+def optimize_design(
+    params_dict: dict[str, Any],
+    selection: dict[str, Any] | None = None,
+    *,
+    design=None,
+    output_root: str = "run_inverse_design",
+    pop_size: int = 100,
+    generations: int = 20,
+    target_tolerance: float = 0.05,
+    use_palace: bool = False,
+    include_readout_pad: bool = True,
+    **kwargs,
+):
+    """
+    Inverse design optimization for superconducting transmon qubits.
+
+    Args:
+        params_dict: Target specification dictionary, e.g.:
+                     {"fQ": "4GHz", "alpha": "200 MHz", "g": "10 MHz"}
+        selection: Selection criteria and barrier thresholds, e.g.:
+                   {"T1": ">100us", "ratio": ">50, <100"}
+        design: Optional pre-existing Qiskit Metal design. If None, created automatically.
+        output_root: Root directory for optimization artifacts and checkpoints.
+        pop_size: Genetic algorithm population size (default: 100).
+        generations: Maximum variable generations (default: 20).
+        target_tolerance: Convergence tolerance (default: 0.05 = 5%).
+        use_palace: Whether to simulate elites and final design with Palace (default: False).
+        include_readout_pad: Whether to include a readout coupling pad (default: True).
+
+    Returns:
+        The optimized Qiskit Metal design object with ._optimization_result attached.
+    """
+    from src.cad import create_transmon_design
+    from src.inverse_design import (
+        parse_target_params,
+        parse_selection_criteria,
+        invert_hamiltonian,
+    )
+
+    # 1. Parse target specifications and selection bounds
+    targets = parse_target_params(params_dict)
+    sel = parse_selection_criteria(selection)
+
+    # 2. Invert (f_q, alpha) to exact Hamiltonian targets (Ej, Ec)
+    hamiltonian = invert_hamiltonian(targets["fQ_GHz"], targets["alpha_MHz"])
+    ej_target = hamiltonian["Ej_MHz"]
+    ec_target = hamiltonian["Ec_MHz"]
+
+    print("\n" + "=" * 75)
+    print("INVERSE DESIGN SPECIFICATION")
+    print(f"Target Qubit Frequency (fQ) : {targets['fQ_GHz']:.3f} GHz")
+    print(f"Target Anharmonicity (alpha): {targets['alpha_MHz']:.1f} MHz")
+    print(f"Target Coupler Rate (g)     : {targets['g_MHz']:.1f} MHz")
+    print(f"Inverted Ej Target          : {ej_target:.1f} MHz ({ej_target/1000.0:.2f} GHz)")
+    print(f"Inverted Ec Target          : {ec_target:.1f} MHz")
+    print(f"Target Differential C_sigma : {hamiltonian['C_sigma_fF']:.2f} fF")
+    print(f"Target Josephson L_j        : {hamiltonian['Lj_nH']:.3f} nH")
+    print(f"Selection Criteria          : T1 >= {sel['min_T1_us']:.1f} us, "
+          f"Ratio in [{sel['min_ratio']:.1f}, {sel['max_ratio']:.1f}]")
+    print("=" * 75)
+
+    # 3. Create transmon design if not provided
+    if design is None:
+        design = create_transmon_design(include_readout_pad=include_readout_pad)
+
+    # 4. Run optimization pipeline
+    inverse_meta = {
+        "targets": targets,
+        "selection": sel,
+        "inverted_hamiltonian": hamiltonian,
+    }
+    result = run_pipeline(
+        design=design,
+        output_root=output_root,
+        pop_size=pop_size,
+        generations=generations,
+        target_tolerance=target_tolerance,
+        ej_target=ej_target,
+        ec_target=ec_target,
+        min_ratio=sel["min_ratio"],
+        max_ratio=sel["max_ratio"],
+        inverse_meta=inverse_meta,
+        use_palace=use_palace,
+        **kwargs,
+    )
+
+    design._optimization_result = result
+    return design
 
 
 if __name__ == "__main__":

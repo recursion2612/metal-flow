@@ -5,15 +5,15 @@
 [![Solver](https://img.shields.io/badge/Solver-AWS%20Palace-FF9900.svg)](https://awslabs.github.io/palace/)
 [![Surrogate](https://img.shields.io/badge/Surrogate-NVIDIA%20PhysicsNeMo-76B900.svg)](https://github.com/NVIDIA/physicsnemo)
 [![CAD](https://img.shields.io/badge/CAD-Qiskit%20Metal-6929C4.svg)](https://qiskit-community.github.io/qiskit-metal/)
-[![Tests](https://img.shields.io/badge/Tests-22%20Passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-34%20Passing-brightgreen.svg)](tests/)
 
-A hybrid CAD and machine learning framework for superconducting transmon qubit design optimization. The pipeline integrates **Qiskit Metal** parameterization, **SQDMetal** + **AWS Palace** finite-element capacitance simulation, an **NVIDIA PhysicsNeMo** surrogate neural network, and a **real-valued Genetic Algorithm (GA)**.
+A hybrid CAD and machine learning framework for superconducting transmon qubit design optimization. The pipeline integrates **Qiskit Metal** parameterization, **SQDMetal** + **AWS Palace** finite-element capacitance simulation, an **NVIDIA PhysicsNeMo** surrogate neural network, a **real-valued Genetic Algorithm (GA)**, and an **inverse design synthesis API**.
 
 ---
 
 ## Design Space & Target Objectives
 
-The optimizer navigates a 4-dimensional geometric and circuit parameter space to match user-defined Hamiltonian energy levels:
+The optimizer navigates a 4-dimensional geometric and circuit parameter space to match user-defined Hamiltonian energy levels or inverse cQED targets ($f_q \in [4, 6]\text{ GHz}$):
 
 | Parameter Key | Component | Description | Search Range | Physical Unit |
 | :--- | :--- | :--- | :---: | :---: |
@@ -22,10 +22,11 @@ The optimizer navigates a 4-dimensional geometric and circuit parameter space to
 | `Q1.pad_gap` | Pocket | Gap between pad and ground plane | 10.0 to 40.0 | µm |
 | `lj` | Junction | Josephson junction linear inductance | 6.0 to 14.0 | nH |
 
-**Optimization Targets**:
-- **Josephson Energy ($E_j$)**: Calculated from inductance $L_j$ (in MHz): $E_j = \frac{\Phi_0^2}{4\pi^2 L_j h} \times 10^{-6}$.
-- **Charging Energy ($E_c$)**: Calculated from transmon differential pad capacitance $C_\Sigma = C_{12} + \frac{C_{1,g} \cdot C_{2,g}}{C_{1,g} + C_{2,g}}$ via 3D electrostatics (in MHz): $E_c = \frac{e^2}{2 C_\Sigma h} \times 10^{-6}$.
-- **Qubit Metrics**: Targets transition frequency $\omega_{01} \approx \sqrt{8 E_j E_c} - E_c$ and anharmonicity $\alpha \approx -E_c$ while enforcing the transmon dispersion threshold ($E_j / E_c \ge 40$).
+**Optimization Targets & Inversion Modes**:
+- **Direct Hamiltonian Targets**: Josephson energy ($E_j$) and charging energy ($E_c$).
+- **Inverse cQED Inversion**: Specify $(f_q^*, \alpha^*, g^*)$ directly; Hamiltonian inversion analytically derives $(E_j^*, E_c^*, C_\Sigma^*, L_j^*)$.
+- **Multi-Objective Selection Criteria**: Purcell coherence barriers ($T_1 > 100\,\mu\text{s}$), transmon phase-regime ratio ($50 \le E_j / E_c \le 100$), dispersive shift ($\chi \in [0.5, 5.0]\text{ MHz}$), and charge dispersion suppression.
+- **Connection Pads & Generalized $C_\Sigma$**: Integrates readout resonator and coupling bus pads with generalized differential capacitance $C_\Sigma = C_{12} + \frac{C_{1\Sigma} C_{2\Sigma}}{C_{1\Sigma} + C_{2\Sigma}}$, in full parity with Qiskit Metal's internal lumped oscillator model (LOM).
 
 ---
 
@@ -37,7 +38,7 @@ flowchart TD
     B --> C["Qiskit Metal Layout Generation"]
     C --> D["Gmsh 3D Mesh Generation (.msh)"]
     D --> E["AWS Palace Finite-Element Solve (MPI)"]
-    E --> F["Extract Transmon Capacitance C_sigma"]
+    E --> F["Extract Maxwell Capacitance Matrix"]
     F --> G["Automated 70/10/20 Dataset Split"]
     G --> H["Train PhysicsNeMo GNN Surrogate (Log-Scale)"]
     H --> I["Real-Valued Genetic Algorithm (GA)"]
@@ -55,8 +56,6 @@ Opt/Quantum_Opt_Pipeline/
 ├── train_surrogate.py        # Step 3: PhysicsNeMo GNN training with early stopping
 ├── optimize.py               # Step 4: Real-valued Genetic Algorithm optimization
 ├── pipeline.py               # Active learning & orchestration pipeline
-├── visualize_design.py       # Layout visualizer & high-resolution PNG generator
-├── recompute_samples.py      # Batch recalculation of true Ec from raw Palace CSVs
 ├── setup_environment.sh      # Core environment setup script (native venv & Docker)
 ├── setup_env.sh              # Portable wrapper for environment setup
 ├── run_container.sh          # Docker container execution wrapper
@@ -65,11 +64,12 @@ Opt/Quantum_Opt_Pipeline/
 ├── requirements-cpu.txt      # Lean CPU dependency requirements
 ├── requirements.txt          # CUDA-accelerated dependency requirements
 ├── src/                      # Core pipeline modules
-│   ├── cad.py                # Qiskit Metal transmon geometry & capacitance extraction
+│   ├── cad.py                # Qiskit Metal transmon geometry construction
+│   ├── mesh.py               # Gmsh meshing and surface identification
 │   ├── palace.py             # Palace config generator and MPI core allocator
-│   ├── surrogate.py          # PhysicsNeMo MeshGraphNet GNN architecture & active learning
+│   ├── model.py              # PhysicsNeMo MeshGraphNet GNN architecture
 │   └── genetic_algorithm.py  # SBX crossover, polynomial mutation & cost function
-├── tests/                    # Automated pytest unit test suite (22 tests)
+├── tests/                    # Automated pytest unit test suite
 └── docs/                     # Modular topic documentation guides
 ```
 
@@ -132,7 +132,41 @@ python train_surrogate.py \
 
 ---
 
-### Step 4: Run Genetic Algorithm Optimization
+### Step 4: Run Optimization (Inverse Design & Direct Modes)
+
+#### Option A: High-Level Python API (`optimize_design`)
+
+Synthesize fabrication layouts directly from high-level circuit specifications:
+
+```python
+from pipeline import optimize_design
+
+design = optimize_design(
+    params_dict={"fQ": "4.5 GHz", "alpha": "220 MHz", "g": "15 MHz"},
+    selection={"T1": ">100us", "ratio": ">50, <100"},
+    include_readout_pad=True,
+    output_dir="optimization_run"
+)
+print("Synthesized Geometry:", design["best_parameters"])
+```
+
+#### Option B: Inverse Design CLI Workflow
+
+```bash
+python optimize.py \
+    --output-root optimization_run \
+    --model-checkpoint training_run/training_data/checkpoints/nemo_surrogate.mdlus \
+    --model-data-log training_run/training_data/train_samples.csv \
+    --fq "4.5 GHz" \
+    --alpha "220 MHz" \
+    --coupling-g "15 MHz" \
+    --selection-t1 ">100us" \
+    --selection-ratio ">50, <100" \
+    --include-readout-pad \
+    --show-metrics
+```
+
+#### Option C: Direct Hamiltonian Targets CLI Workflow
 
 ```bash
 python optimize.py \
@@ -148,12 +182,22 @@ python optimize.py \
 
 ---
 
-### Step 5: Run Automated Tests
+### Step 5: View Performance Metrics Cleanly
+
+Display a clean ASCII performance report summarizing Hamiltonian convergence, Purcell coherence, transmon ratio, and speedup benchmarks:
+
+```bash
+python show_metrics.py --result optimization_run/optimization_result.json
+```
+
+---
+
+### Step 6: Run Automated Tests
 
 ```bash
 python -m pytest -q
 ```
-- **What to expect**: Runs 19 unit tests in ~5 seconds, verifying genetic operators, variable stopping, math transforms, MPI bounds, transmon capacitance extraction, and script syntax.
+- **What to expect**: Runs 34 unit and smoke tests in ~7 seconds, verifying inverse design parsing, Hamiltonian inversion, Purcell $T_1$ calculations, multi-terminal $C_\Sigma$ extraction, Qiskit Metal LOM parity, genetic operators, variable stopping, math transforms, MPI bounds, zero hardcoded local paths, and script syntax.
 
 ---
 
@@ -161,21 +205,25 @@ python -m pytest -q
 
 | Script | Option | Default | Description |
 | :--- | :--- | :---: | :--- |
-| `generate_samples.py` | `--samples` | `10` | Number of parametric samples to generate via LHS |
-| | `--include-boundary-points` | `False` | Pin $2^4=16$ boundary corner points to prevent extrapolation |
-| | `--palace-bin` | system | Path to AWS Palace executable binary |
-| | `--seed` | entropy | Random seed for deterministic sample reproduction |
-| `train_surrogate.py` | `--epochs` | `2000` | Maximum number of training epochs |
-| | `--early-stopping-patience`| `200` | Epochs without validation improvement before early termination |
-| | `--evaluation-output` | `None` | Path to export test-set performance metrics JSON |
-| `optimize.py` | `--population` | `100` | Number of candidate designs per GA generation |
+| `optimize.py` | `--fq` | `None` | Target qubit transition frequency (e.g., `'4.5 GHz'`) |
+| | `--alpha` | `None` | Target transmon anharmonicity (e.g., `'220 MHz'`) |
+| | `--coupling-g` | `None` | Target qubit-resonator coupling strength (e.g., `'15 MHz'`) |
+| | `--selection-t1` | `None` | Coherence selection constraint (e.g., `'>100us'`) |
+| | `--selection-ratio`| `None` | Transmon ratio constraint (e.g., `'>50, <100'`) |
+| | `--include-readout-pad`| `False` | Include auxiliary readout resonator connection pad |
+| | `--show-metrics` | `False` | Display formatted performance report table upon completion |
+| | `--population` | `100` | Number of candidate designs per GA generation |
 | | `--generations` | `20` | Maximum budget of variable generations to evolve |
 | | `--target-tolerance` | `0.05` | Early stopping tolerance (stops when within 5% of target params) |
 | | `--use-palace` | `False` | Run full-wave Palace validation solve on winning candidate |
-| | `--mpi-procs` | dynamic | Override MPI rank count (capped at $\lceil 0.90 \times \text{cores} \rceil$) |
+| `show_metrics.py` | `--result` | `optimization_result.json` | Path to optimization result JSON file to display |
+| `generate_samples.py` | `--samples` | `10` | Number of parametric samples to generate via LHS |
+| | `--include-boundary-points` | `False` | Pin $2^4=16$ boundary corner points to prevent extrapolation |
+| | `--palace-bin` | system | Path to AWS Palace executable binary |
+| `train_surrogate.py` | `--epochs` | `2000` | Maximum number of training epochs |
+| | `--early-stopping-patience`| `200` | Epochs without validation improvement before early termination |
 | `visualize_design.py`| `--result-json`| `None` | Path to optimization_result.json to render layout |
 | | `--output` | `final_design.png` | Destination PNG image file |
-| `recompute_samples.py`| `--training-run-dir` | `None` | Path to training run folder to recompute true Ec from raw Palace CSVs |
 
 ---
 

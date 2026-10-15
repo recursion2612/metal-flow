@@ -78,11 +78,25 @@ python train_surrogate.py \
 
 ---
 
-## Step 4: Genetic Algorithm Optimization
+## Step 4: Genetic Algorithm Optimization & Inverse Design
 
-Run real-valued Genetic Algorithm optimization to find the best transmon parameters matching target qubit frequencies:
+Run real-valued Genetic Algorithm optimization to find the best transmon parameters matching target qubit frequencies or inverse cQED requirements:
 
 ```bash
+# Option A: Inverse Design with Multi-Objective Selection Barriers
+python optimize.py \
+    --output-root optimization_run \
+    --model-checkpoint training_run/training_data/checkpoints/nemo_surrogate.mdlus \
+    --model-data-log training_run/training_data/train_samples.csv \
+    --fq "4.5 GHz" \
+    --alpha "220 MHz" \
+    --coupling-g "15 MHz" \
+    --selection-t1 ">100us" \
+    --selection-ratio ">50, <100" \
+    --include-readout-pad \
+    --show-metrics
+
+# Option B: Direct Hamiltonian Target Optimization
 python optimize.py \
     --output-root optimization_run \
     --model-checkpoint training_run/training_data/checkpoints/nemo_surrogate.mdlus \
@@ -95,28 +109,17 @@ python optimize.py \
 ### What to Expect
 - **Optimization Process**: Evaluates 100 candidate designs per generation using tournament selection, SBX crossover, and polynomial mutation. In each generation, the best ranking candidates are simulated with AWS Palace and carried forward as elites into the next generation. Stops early when the best candidate reaches within 5% of target parameters (or up to 20 max generations), simultaneously deleting old generation data to keep disk usage zero.
 - **Artifacts Created**:
-  - `optimization_run/optimization_result.json`: Summary containing winning parameters (`pad_width`, `pad_height`, `pad_gap`, and $L_j$), predicted frequencies, and verified Palace simulation metrics.
-  - `optimization_run/final_design.png`: High-resolution render of the winning transmon chip layout.
+  - `optimization_run/optimization_result.json`: Summary containing winning parameters (`pad_width`, `pad_height`, `pad_gap`, and $L_j$), predicted frequencies, achieved cQED metrics, and verified Palace simulation metrics.
 - **Palace Simulation**: Simulated results from Palace are recorded for the best candidate in each generation and for the final winning design.
 
 ---
 
-## Step 5: Design Layout Visualization
+## Step 5: View Performance Metrics Cleanly
 
-Render any design layout directly to a high-resolution PNG:
+Display a clean ASCII performance report summarizing Hamiltonian convergence, Purcell coherence, transmon ratio, and speedup benchmarks:
 
 ```bash
-# Render layout from optimization_result.json:
-python visualize_design.py \
-    --result-json optimization_run/optimization_result.json \
-    --output final_layout.png
-
-# Or specify custom geometric parameters directly:
-python visualize_design.py \
-    --pad-width 520 \
-    --pad-height 60 \
-    --pad-gap 25 \
-    --output custom_qubit.png
+python show_metrics.py --result optimization_run/optimization_result.json
 ```
 
 ---
@@ -130,7 +133,7 @@ python -m pytest -q
 ```
 
 ### What to Expect
-- **Result**: All 22 tests passing, confirming math transforms, genetic operators, Palace simulation loop, MPI rules, sample deduplication, older sample reuse, and script integrity.
+- **Result**: All 34 tests passing, confirming inverse design mathematical inversion, Purcell $T_1$ calculations, multi-terminal connection pad differential capacitance, Qiskit Metal LOM parity, genetic operators, Palace simulation loop, MPI rules, zero hardcoded local paths, and script integrity.
 
 ---
 
@@ -140,4 +143,3 @@ python -m pytest -q
 - For parameter ranges and sampling controls: see [Sample Generation](sampling.md).
 - For GNN architecture and loss curves: see [Surrogate Modeling](surrogate.md).
 - For GA objective formulations: see [Genetic Optimization](optimization.md).
-- For batch recalculation of raw simulation matrices: see `recompute_samples.py`.

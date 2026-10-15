@@ -5,32 +5,40 @@ def compute_cost(
     ej_mhz: float, 
     ec_mhz: float, 
     ej_target: float = 20000.0, 
-    ec_target: float = 320.0
+    ec_target: float = 320.0,
+    min_ratio: float = 40.0,
+    max_ratio: float = float("inf"),
 ) -> float:
     """
     Cost function with quadratic boundary penalties for:
-      - 15000 MHz < Ej < 30000 MHz
-      - 300 MHz < Ec < 500 MHz
-      - Transmon regime protection (Ej/Ec >= 40)
+      - Ej target tracking
+      - Ec target tracking
+      - Transmon regime protection and selection bounds (min_ratio <= Ej/Ec <= max_ratio)
     """
     # 1. Target Tracking Loss (Normalized MSE)
     loss_target = 0.5 * ((ej_mhz - ej_target) / ej_target)**2 + \
                   0.5 * ((ec_mhz - ec_target) / ec_target)**2
 
-    # 2. Hard Boundary Penalties
-    pen_ej = max(0.0, (15000.0 - ej_mhz) / 15000.0)**2 + max(0.0, (ej_mhz - 30000.0) / 30000.0)**2
-    pen_ec = max(0.0, (300.0 - ec_mhz) / 300.0)**2 + max(0.0, (ec_mhz - 500.0) / 500.0)**2
+    # 2. Boundary Penalties (adaptive based on targets)
+    ej_min = min(15000.0, ej_target * 0.7)
+    ej_max = max(30000.0, ej_target * 1.3)
+    ec_min = min(300.0, ec_target * 0.7)
+    ec_max = max(500.0, ec_target * 1.3)
 
-    # 3. Charge Dispersion Barrier (Ej/Ec ratio)
+    pen_ej = max(0.0, (ej_min - ej_mhz) / ej_min)**2 + max(0.0, (ej_mhz - ej_max) / ej_max)**2
+    pen_ec = max(0.0, (ec_min - ec_mhz) / ec_min)**2 + max(0.0, (ec_mhz - ec_max) / ec_max)**2
+
+    # 3. Charge Dispersion Barrier & Selection Criteria (Ej/Ec ratio)
     ratio = ej_mhz / max(1e-3, ec_mhz)
-    pen_ratio = max(0.0, (40.0 - ratio) / 40.0)**2
+    pen_ratio_low = max(0.0, (min_ratio - ratio) / min_ratio)**2
+    pen_ratio_high = max(0.0, (ratio - max_ratio) / max_ratio)**2 if np.isfinite(max_ratio) else 0.0
 
     # Penalty weights
     lambda_ej = 1000.0
     lambda_ec = 1000.0
     lambda_ratio = 500.0
 
-    return float(loss_target + (lambda_ej * pen_ej) + (lambda_ec * pen_ec) + (lambda_ratio * pen_ratio))
+    return float(loss_target + (lambda_ej * pen_ej) + (lambda_ec * pen_ec) + (lambda_ratio * (pen_ratio_low + pen_ratio_high)))
 
 
 def select_parents(population: np.ndarray, costs: np.ndarray, tournament_size: int = 3) -> np.ndarray:

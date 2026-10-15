@@ -25,8 +25,14 @@ def create_transmon_design(
     chip_size_y: str = "2mm",
     q1_name: str = "Q1",
     q1_options: dict[str, Any] | None = None,
+    include_readout_pad: bool = False,
+    connection_pads: dict[str, Any] | None = None,
 ):
-    """Create the Qiskit Metal transmon used by the default optimization bounds."""
+    """Create the Qiskit Metal transmon used by the optimization bounds.
+    
+    Supports optional readout connection pads to enable direct multi-terminal
+    capacitance matrix extraction, coupling rate (g), and dispersive shift (chi).
+    """
     try:
         from qiskit_metal import designs
         from qiskit_metal.qlibrary.qubits.transmon_pocket import TransmonPocket
@@ -46,6 +52,26 @@ def create_transmon_design(
         "pocket_height": "650um",
         "connection_pads": {},
     }
+
+    conn_pads = {}
+    if include_readout_pad:
+        conn_pads["readout"] = {
+            "connector_type": "0",
+            "pad_width": "125um",
+            "pad_height": "30um",
+            "pad_gap": "15um",
+            "pad_cpw_shift": "0um",
+            "pad_cpw_extent": "25um",
+            "cpw_width": "10um",
+            "cpw_gap": "6um",
+            "cpw_extend": "100um",
+            "loc_W": 1,
+            "loc_H": 1,
+        }
+    if connection_pads:
+        conn_pads.update(connection_pads)
+    options["connection_pads"] = conn_pads
+
     if q1_options:
         options.update(q1_options)
     TransmonPocket(design, q1_name, options=options)
@@ -181,30 +207,123 @@ def extract_transmon_c_sigma(matrix: np.ndarray) -> float:
     Extract the effective charging capacitance C_sigma for a floating transmon
     from the Maxwell capacitance matrix (from AWS Palace / SQDMetal).
 
-    For an isolated floating transmon with 3 terminals (SQDMetal default):
-      - Index 0: Chip ground plane ("Chip")
-      - Index 1: Transmon Pad 1 ("Cond1")
-      - Index 2: Transmon Pad 2 ("Cond2")
-
-    C_sigma = C_12 + (C_1_g * C_2_g) / (C_1_g + C_2_g)
+    Supports:
+      - 3-terminal floating transmon without connection pads:
+          Index 0: Ground plane ("Chip")
+          Index 1: Transmon Pad 1 ("Cond1")
+          Index 2: Transmon Pad 2 ("Cond2")
+          C_sigma = C_12 + (C_1_g * C_2_g) / (C_1_g + C_2_g)
+      - (N+3)-terminal transmon with N connection pads (readout, bus):
+          Indices 3..N+2: Connection pad terminals
+          C_1S = C_1_g + sum_{j>=3} C_1_cp_j
+          C_2S = C_2_g + sum_{j>=3} C_2_cp_j
+          C_sigma = C_12 + (C_1S * C_2S) / (C_1S + C_2S)
     """
-    if matrix.shape[0] >= 3 and matrix.shape[1] >= 3:
+    dim = matrix.shape[0]
+    if dim >= 3 and matrix.shape[1] >= 3:
         c12 = abs(float(matrix[1, 2]))
-        c1_g = abs(float(matrix[1, 0]))
-        c2_g = abs(float(matrix[2, 0]))
-        g_sum = c1_g + c2_g
-        c_g_eff = (c1_g * c2_g) / g_sum if g_sum > 0 else 0.0
+        # Sum of capacitances to ground (index 0) and any coupling pads (indices 3..dim-1)
+        c1_s = abs(float(matrix[1, 0])) + sum(abs(float(matrix[1, j])) for j in range(3, dim))
+        c2_s = abs(float(matrix[2, 0])) + sum(abs(float(matrix[2, j])) for j in range(3, dim))
+        g_sum = c1_s + c2_s
+        c_g_eff = (c1_s * c2_s) / g_sum if g_sum > 0 else 0.0
         c_sigma = c12 + c_g_eff
         if np.isfinite(c_sigma) and c_sigma > 0:
             return float(c_sigma)
 
-    if matrix.shape[0] == 2 and matrix.shape[1] == 2:
+    if dim == 2 and matrix.shape[1] == 2:
         c_mutual = abs(float(matrix[0, 1]))
         if c_mutual > 0:
             return c_mutual
         return abs(float(matrix[1, 1]))
 
     return abs(float(matrix[0, 0]))
+
+
+def extract_transmon_hamiltonian_lom(
+    matrix: np.ndarray,
+    lj_val: float,
+    n_connection_pads: int = 1,
+    fr_ghz: float = 7.0,
+    cj_f: float = 1e-15,
+) -> dict[str, Any]:
+    """
+    Use Qiskit Metal's internal lumped oscillator model (LOM) function
+    extract_transmon_coupled_Noscillator to extract full Hamiltonian properties,
+    coupling rates (g), dispersive shift (chi), charge dispersion, and Purcell T1.
+    """
+    try:
+        from qiskit_metal.analyses.quantization.lumped_capacitive import (
+            extract_transmon_coupled_Noscillator,
+        )
+    except ImportError as exc:
+        raise ImportError("Qiskit Metal is required for LOM Hamiltonian extraction") from exc
+
+    dim = matrix.shape[0]
+    if dim < n_connection_pads + 3:
+        n_connection_pads = max(0, dim - 3)
+
+    if n_connection_pads < 1:
+        c_sigma = extract_transmon_c_sigma(matrix)
+        ec_mhz = (E_CHARGE**2 / (2.0 * c_sigma * H_PLANCK)) * 1e-6
+        ej_mhz = (PHI_0**2 / (4.0 * np.pi**2 * lj_val * H_PLANCK)) * 1e-6
+        fq_ghz = (np.sqrt(8.0 * ej_mhz * ec_mhz) - ec_mhz) / 1000.0
+        return {
+            "fQ_GHz": float(fq_ghz),
+            "EC_MHz": float(ec_mhz),
+            "EJ_MHz": float(ej_mhz),
+            "alpha_MHz": float(ec_mhz),
+            "ratio": float(ej_mhz / max(1e-3, ec_mhz)),
+            "C_sigma_fF": float(c_sigma * 1e15),
+            "g_MHz": 0.0,
+            "chi_MHz": 0.0,
+            "dispersion_kHz": 0.0,
+            "T1_us": 100.0,
+        }
+
+    # Ic from linear Josephson inductance
+    ic_val = float(PHI_0 / (2.0 * np.pi * lj_val))
+
+    # Run Qiskit Metal's extract_transmon_coupled_Noscillator
+    lom_res = extract_transmon_coupled_Noscillator(
+        capMatrix=matrix,
+        Ic=ic_val,
+        CJ=cj_f,
+        N=n_connection_pads,
+        fb=[],
+        fr=float(fr_ghz),
+        print_info=False,
+    )
+
+    fq_ghz = float(lom_res.get("fQ", 5.0))
+    ec_mhz = float(lom_res.get("EC", 300.0))
+    ej_ghz = float(lom_res.get("EJ", 15.0))
+    ej_mhz = ej_ghz * 1000.0
+    alpha = abs(float(lom_res.get("alpha", ec_mhz)))
+    disp = float(lom_res.get("dispersion", 0.1))
+
+    gbus = lom_res.get("gbus", [10.0])
+    g_mhz = float(gbus[0]) if hasattr(gbus, "__len__") else float(gbus)
+
+    chibus = lom_res.get("chi_in_MHz", [1.0])
+    chi_mhz = float(chibus[0]) if hasattr(chibus, "__len__") else float(chibus)
+
+    from .inverse_design import compute_purcell_t1
+    t1_us = compute_purcell_t1(fq_ghz, g_mhz, f_r_GHz=fr_ghz)
+    c_sigma = extract_transmon_c_sigma(matrix)
+
+    return {
+        "fQ_GHz": fq_ghz,
+        "EC_MHz": ec_mhz,
+        "EJ_MHz": ej_mhz,
+        "alpha_MHz": alpha,
+        "ratio": float(ej_mhz / max(1e-3, ec_mhz)),
+        "C_sigma_fF": float(c_sigma * 1e15),
+        "g_MHz": g_mhz,
+        "chi_MHz": chi_mhz,
+        "dispersion_kHz": disp,
+        "T1_us": t1_us,
+    }
 
 
 def _read_terminal_capacitance(path: Path) -> np.ndarray:

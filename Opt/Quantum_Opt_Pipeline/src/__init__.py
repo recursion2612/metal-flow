@@ -27,6 +27,19 @@ from .cad import (
     create_transmon_design,
     export_qiskit_metal_gmsh,
     extract_transmon_c_sigma,
+    extract_transmon_hamiltonian_lom,
+)
+from .inverse_design import (
+    parse_frequency,
+    parse_energy,
+    parse_coupling,
+    parse_time,
+    parse_range_or_bound,
+    parse_target_params,
+    parse_selection_criteria,
+    invert_hamiltonian,
+    compute_purcell_t1,
+    compute_inverse_cost,
 )
 
 __all__ = [
@@ -47,5 +60,16 @@ __all__ = [
     "create_transmon_design",
     "export_qiskit_metal_gmsh",
     "extract_transmon_c_sigma",
+    "extract_transmon_hamiltonian_lom",
+    "parse_frequency",
+    "parse_energy",
+    "parse_coupling",
+    "parse_time",
+    "parse_range_or_bound",
+    "parse_target_params",
+    "parse_selection_criteria",
+    "invert_hamiltonian",
+    "compute_purcell_t1",
+    "compute_inverse_cost",
 ]
 

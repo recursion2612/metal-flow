@@ -72,25 +72,97 @@ def main() -> None:
         default=1,
         help="Number of best ranking candidates to simulate with Palace each generation (default: 1)",
     )
+    # Inverse design arguments
+    parser.add_argument(
+        "--fq",
+        type=str,
+        default=None,
+        help="Target qubit transition frequency for inverse design (e.g. '4GHz', '5.2 GHz')",
+    )
+    parser.add_argument(
+        "--alpha",
+        type=str,
+        default=None,
+        help="Target anharmonicity for inverse design (e.g. '200MHz', '-220 MHz')",
+    )
+    parser.add_argument(
+        "--coupling-g",
+        type=str,
+        default=None,
+        help="Target coupling rate g to readout/bus (e.g. '10MHz')",
+    )
+    parser.add_argument(
+        "--selection-t1",
+        type=str,
+        default=">100us",
+        help="Selection threshold for Purcell coherence T1 (default: '>100us')",
+    )
+    parser.add_argument(
+        "--selection-ratio",
+        type=str,
+        default=">50, <100",
+        help="Selection bounds for transmon Ej/Ec ratio (default: '>50, <100')",
+    )
+    parser.add_argument(
+        "--include-readout-pad",
+        action="store_true",
+        default=True,
+        help="Include readout connection pad in transmon design (default: True)",
+    )
     args = parser.parse_args()
 
-    design = create_transmon_design()
-    run_pipeline(
-        design=design,
-        output_root=args.output_root,
-        pop_size=args.population,
-        generations=args.generations,
-        target_tolerance=args.target_tolerance,
-        ej_target=args.ej_target,
-        ec_target=args.ec_target,
-        palace_mpi_procs=args.mpi_procs,
-        palace_bin=args.palace_bin,
-        model_checkpoint=args.model_checkpoint,
-        model_data_log=args.model_data_log,
-        train_surrogate=args.train_surrogate,
-        use_palace=args.use_palace,
-        palace_elites=args.palace_elites,
-    )
+    from show_metrics import print_metrics
+
+    if args.fq is not None:
+        from pipeline import optimize_design
+        params_dict = {"fQ": args.fq}
+        if args.alpha:
+            params_dict["alpha"] = args.alpha
+        if args.coupling_g:
+            params_dict["g"] = args.coupling_g
+        
+        selection = {
+            "T1": args.selection_t1,
+            "ratio": args.selection_ratio,
+        }
+        design = optimize_design(
+            params_dict=params_dict,
+            selection=selection,
+            output_root=args.output_root,
+            pop_size=args.population,
+            generations=args.generations,
+            target_tolerance=args.target_tolerance,
+            palace_mpi_procs=args.mpi_procs,
+            palace_bin=args.palace_bin,
+            model_checkpoint=args.model_checkpoint,
+            model_data_log=args.model_data_log,
+            train_surrogate=args.train_surrogate,
+            use_palace=args.use_palace,
+            palace_elites=args.palace_elites,
+            include_readout_pad=args.include_readout_pad,
+        )
+        result = design._optimization_result
+    else:
+        design = create_transmon_design(include_readout_pad=args.include_readout_pad)
+        result = run_pipeline(
+            design=design,
+            output_root=args.output_root,
+            pop_size=args.population,
+            generations=args.generations,
+            target_tolerance=args.target_tolerance,
+            ej_target=args.ej_target,
+            ec_target=args.ec_target,
+            palace_mpi_procs=args.mpi_procs,
+            palace_bin=args.palace_bin,
+            model_checkpoint=args.model_checkpoint,
+            model_data_log=args.model_data_log,
+            train_surrogate=args.train_surrogate,
+            use_palace=args.use_palace,
+            palace_elites=args.palace_elites,
+        )
+
+    print("\n")
+    print_metrics(result)
 
 
 if __name__ == "__main__":

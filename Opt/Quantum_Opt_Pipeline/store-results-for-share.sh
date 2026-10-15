@@ -1,6 +1,6 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
-SRC_DIR=/home/aashay2/metal-flow/Opt/Quantum_Opt_Pipeline
+SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "Storing Sim results in results/"
 

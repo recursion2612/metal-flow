@@ -1,6 +1,5 @@
-#!/usr/bin/bash
-
-SRC_DIR=/home/aashay2/metal-flow/Opt/Quantum_Opt_Pipeline
+#!/usr/bin/env bash
+SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 rm  $SRC_DIR/training_run/run_metadata.json
 rm -r $SRC_DIR/training_run/data/*
