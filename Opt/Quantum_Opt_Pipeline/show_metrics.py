@@ -160,6 +160,12 @@ def print_metrics(data: dict, title: str = "QUANTUM CHIP OPTIMIZATION PERFORMANC
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "path",
+        nargs="?",
+        default=None,
+        help="Path to optimization_result.json (optional positional argument)",
+    )
+    parser.add_argument(
         "--result-json",
         "-f",
         default=None,
@@ -174,11 +180,13 @@ def main() -> None:
 
     # Find result file
     target_path: Path | None = None
-    if args.result_json:
-        target_path = Path(args.result_json)
+    input_file = args.path or args.result_json
+    if input_file:
+        target_path = Path(input_file)
     else:
         # Search candidate locations
         candidates = [
+            Path("optimization_run/optimization_result.json"),
             Path("optimization_result.json"),
             Path("run_01/optimization_result.json"),
             Path("run_inverse_design/optimization_result.json"),

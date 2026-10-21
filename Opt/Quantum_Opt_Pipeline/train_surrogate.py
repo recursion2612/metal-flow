@@ -134,9 +134,6 @@ def main() -> None:
         surrogate.last_evaluation = evaluation
         surrogate._save_checkpoint()
     if args.evaluation_output:
-        from pathlib import Path
-        import json
-
         output_path = Path(args.evaluation_output)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(json.dumps(evaluation, indent=2), encoding="utf-8")
@@ -161,9 +158,6 @@ def main() -> None:
         print(f"Evaluation report: {args.evaluation_output}")
     if test_evaluation:
         if args.test_output:
-            from pathlib import Path
-            import json
-
             test_output = Path(args.test_output)
             test_output.parent.mkdir(parents=True, exist_ok=True)
             test_output.write_text(json.dumps(test_evaluation, indent=2), encoding="utf-8")

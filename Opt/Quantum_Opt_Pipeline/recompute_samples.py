@@ -53,7 +53,7 @@ def recompute_samples(data_dir: Path, training_data_dir: Path) -> pd.DataFrame:
         print(f"  C_sigma: min={min(corrected_csig):.2f} fF, max={max(corrected_csig):.2f} fF")
 
     # Update split files if present
-    for split_name in ("train_samples.csv", "validation_samples.csv", "test_samples.csv"):
+    for split_name in ("train_samples.csv", "validation_samples.csv", "test_samples.csv", "sample_splits.csv"):
         split_path = training_data_dir / split_name
         if split_path.exists():
             sdf = pd.read_csv(split_path)
@@ -61,6 +61,8 @@ def recompute_samples(data_dir: Path, training_data_dir: Path) -> pd.DataFrame:
             merged = sdf.drop(columns=["Ec_MHz"], errors="ignore").merge(
                 df[p_cols + ["Ec_MHz"]], on=p_cols, how="left"
             )
+            cols = [c for c in sdf.columns]
+            merged = merged[cols]
             merged.to_csv(split_path, index=False)
             print(f"Updated split file: {split_name}")
 

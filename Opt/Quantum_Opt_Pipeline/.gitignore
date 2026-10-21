@@ -15,3 +15,7 @@ optimization_result.json
 !tests/
 !tests/**
 tests/__pycache__/
+
+# College paper submission copy (strictly local, never committed)
+*college*
+*College*

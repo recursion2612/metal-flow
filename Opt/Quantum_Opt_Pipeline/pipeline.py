@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gc
 import json
+import os
 from pathlib import Path
 import shutil
 from typing import Any
@@ -99,14 +100,86 @@ def run_pipeline(
         bounds[:, 0], bounds[:, 1], size=(pop_size, len(bounds))
     )
 
-    checkpoint_path = model_checkpoint or str(training_root / "checkpoints/nemo_surrogate.mdlus")
-    data_log_path = model_data_log
-    if data_log_path is None and model_checkpoint is not None:
-        data_log_path = str(Path(model_checkpoint).parent.parent / "active_learning_log.csv")
+    # Resolve trained checkpoint path
+    resolved_checkpoint: Path | None = None
+    if model_checkpoint and Path(model_checkpoint).exists():
+        resolved_checkpoint = Path(model_checkpoint)
+    else:
+        candidate_checkpoints = [
+            training_root / "checkpoints/nemo_surrogate.mdlus",
+            Path("training_data/checkpoints/nemo_surrogate.mdlus"),
+            Path("training_run/training_data/checkpoints/nemo_surrogate.mdlus"),
+            Path("results/training_run/training_data/checkpoints/nemo_surrogate.mdlus"),
+        ]
+        for cand in candidate_checkpoints:
+            if cand.exists():
+                resolved_checkpoint = cand
+                break
+
+    # If still not found, check if results500.zip exists and can be unpacked
+    if resolved_checkpoint is None and Path("results500.zip").exists():
+        import zipfile
+        try:
+            with zipfile.ZipFile("results500.zip", "r") as zf:
+                extract_dir = Path("training_data")
+                extract_dir.mkdir(parents=True, exist_ok=True)
+                for member in zf.namelist():
+                    if any(member.endswith(ext) for ext in (
+                        "nemo_surrogate.mdlus",
+                        "nemo_surrogate.state.pt",
+                        "active_learning_log.csv",
+                        "train_samples.csv",
+                        "test_samples.csv",
+                        "validation_samples.csv",
+                        "sample_splits.csv",
+                    )):
+                        filename = Path(member).name
+                        if filename.startswith("nemo_"):
+                            target_file = extract_dir / "checkpoints" / filename
+                        else:
+                            target_file = extract_dir / filename
+                        if not target_file.exists():
+                            target_file.parent.mkdir(parents=True, exist_ok=True)
+                            with zf.open(member) as src, open(target_file, "wb") as dst:
+                                dst.write(src.read())
+            default_extracted = Path("training_data/checkpoints/nemo_surrogate.mdlus")
+            if default_extracted.exists():
+                resolved_checkpoint = default_extracted
+        except Exception:
+            pass
+
+    checkpoint_path = str(resolved_checkpoint) if resolved_checkpoint else (model_checkpoint or str(training_root / "checkpoints/nemo_surrogate.mdlus"))
+
+    # Resolve training data log path
+    resolved_data_log: Path | None = None
+    if model_data_log and Path(model_data_log).exists():
+        resolved_data_log = Path(model_data_log)
+    else:
+        candidate_logs = []
+        if resolved_checkpoint and Path(resolved_checkpoint).exists():
+            cand_dir = Path(resolved_checkpoint).parent.parent
+            candidate_logs.extend([
+                cand_dir / "active_learning_log.csv",
+                cand_dir / "train_samples.csv",
+            ])
+        candidate_logs.extend([
+            training_root / "active_learning_log.csv",
+            Path("training_data/active_learning_log.csv"),
+            Path("training_data/train_samples.csv"),
+            Path("training_run/training_data/active_learning_log.csv"),
+            Path("training_run/training_data/train_samples.csv"),
+            Path("results/training_run/training_data/active_learning_log.csv"),
+        ])
+        for cand_log in candidate_logs:
+            if cand_log.exists():
+                resolved_data_log = cand_log
+                break
+
+    data_log_path = str(resolved_data_log) if resolved_data_log else (model_data_log or str(training_root / "active_learning_log.csv"))
 
     surrogate = PhysicsNeMoSurrogate(
         n_features=len(bounds),
-        data_log_path=data_log_path or str(training_root / "active_learning_log.csv"),
+        data_log_path=data_log_path,
         checkpoint_path=checkpoint_path,
     )
     if not surrogate.is_trained:
@@ -335,8 +408,8 @@ def run_pipeline(
         "mutation_rate": mutation_rate,
         "palace_samples": int(len(surrogate.X_train)),
         "palace_executable": palace_bin,
-        "training_log": str(training_root / "active_learning_log.csv"),
-        "surrogate_checkpoint": str(training_root / "checkpoints/nemo_surrogate.mdlus"),
+        "training_log": str(data_log_path),
+        "surrogate_checkpoint": str(checkpoint_path),
         "training_phase_separate": True,
         "optimization_is_frozen": True,
     }

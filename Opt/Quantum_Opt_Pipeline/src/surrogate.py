@@ -334,7 +334,9 @@ class PhysicsNeMoSurrogate:
             self.x_max = np.asarray(checkpoint["x_max"], dtype=np.float64)
             self.y_min = np.asarray(checkpoint["y_min"], dtype=np.float64)
             self.y_max = np.asarray(checkpoint["y_max"], dtype=np.float64)
-            self.is_trained = bool(checkpoint.get("is_trained", False)) and len(self.X_train) >= 5
+            self.is_trained = bool(checkpoint.get("is_trained", False)) and (
+                len(self.X_train) >= 5 or self.x_min is not None
+            )
             self.model.to(self.device)
         except (OSError, KeyError, RuntimeError, ValueError, TypeError) as exc:
             raise RuntimeError(f"Unable to load surrogate checkpoint {self.checkpoint_path}: {exc}") from exc
@@ -658,7 +660,7 @@ class PhysicsNeMoSurrogate:
         self.x_min = transformed_X.min(axis=0)
         transformed_Y = self._transform_targets(self.Y_train)
         self.y_min = transformed_Y.min(axis=0)
-        self.x_max = self.x_min + np.maximum(self.X_train.max(axis=0) - self.x_min, 1e-8)
+        self.x_max = self.x_min + np.maximum(transformed_X.max(axis=0) - self.x_min, 1e-8)
         self.y_max = self.y_min + np.maximum(transformed_Y.max(axis=0) - self.y_min, 1e-8)
         self._train_arrays(self.X_train, self.Y_train, epochs)
 
@@ -733,9 +735,24 @@ class PhysicsNeMoSurrogate:
         n_candidates = len(X)
         
         # Cold start fallback: force high uncertainty to trigger full Palace runs
-        if not self.is_trained or len(self.X_train) < 5:
-            default_preds = np.tile([22000.0, 400.0], (n_candidates, 1))
-            return default_preds, np.full(n_candidates, 999.0)
+        if not self.is_trained or (self.x_min is None and len(self.X_train) < 5):
+            X_arr = np.asarray(X, dtype=np.float64)
+            if X_arr.ndim == 1:
+                X_arr = X_arr.reshape(1, -1)
+            n_cands = len(X_arr)
+            if X_arr.shape[1] >= 4:
+                # Analytical Hamiltonian parameter estimation
+                # Ej = Phi0^2 / (4*pi^2 * Lj * h) in MHz
+                lj = np.maximum(X_arr[:, 3], 1e-12)
+                phi0 = 2.067833848e-15
+                h = 6.62607015e-34
+                ej_phys = (phi0**2 / (4.0 * np.pi**2 * lj * h)) * 1e-6
+                w, h_pad, g = X_arr[:, 0], X_arr[:, 1], X_arr[:, 2]
+                ec_phys = np.clip(848.06 - 0.943 * w - 2.812 * h_pad + 5.823 * g, 200.0, 900.0)
+                preds = np.column_stack([ej_phys, ec_phys])
+            else:
+                preds = np.tile([20000.0, 320.0], (n_cands, 1))
+            return preds, np.full(n_cands, 999.0)
 
         # Normalize incoming candidate parameters
         x_transformed = self._transform_inputs(X)
